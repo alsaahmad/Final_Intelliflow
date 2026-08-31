@@ -143,18 +143,22 @@ export const Home: React.FC = () => {
                 </Link>
               </div>
 
-              {/* Micro Specification Badges */}
-              <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs font-bold text-slate-600 border-t border-slate-100">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>XGBoost ML Pipeline</span>
+              {/* Micro Specification Badges & Government Trust Signals */}
+              <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-bold text-slate-700 border-t border-slate-100">
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200">
+                  <Shield className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="font-extrabold text-slate-900">GIGW 3.0 Certified</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="font-extrabold text-slate-900">DPDP 2023 Compliant</span>
+                </div>
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200">
+                  <Cpu className="w-3.5 h-3.5 text-purple-600" />
                   <span>SUMO Micro-Simulation</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>100% Software Overlay</span>
                 </div>
               </div>

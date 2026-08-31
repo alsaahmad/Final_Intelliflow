@@ -104,3 +104,31 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* GIGW 3.0 Strict Accessibility: High Visibility Focus Ring */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #2563eb !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25) !important;
+}
+
+/* GIGW 3.0 High Contrast Accessibility Mode */
+.high-contrast-mode {
+  filter: contrast(135%) brightness(95%);
+}
+
+.high-contrast-mode body {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+.high-contrast-mode .light-card,
+.high-contrast-mode .light-panel {
+  border: 2px solid #000000 !important;
+  box-shadow: none !important;
+}
+

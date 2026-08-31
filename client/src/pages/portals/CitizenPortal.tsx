@@ -1,628 +1,970 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../api/authClient';
+import { useCitySync } from '../../context/CitySyncContext';
+import { DualMapView, MapMarker, MapPolyline } from '../../components/map/DualMapView';
 import {
-  Home,
+  Users,
+  Navigation,
+  ParkingSquare,
   AlertTriangle,
-  LogOut,
   PhoneCall,
-  MapPin,
+  LogOut,
   Send,
   CheckCircle2,
-  Layers,
-  Activity,
-  Menu,
+  QrCode,
+  ShieldAlert,
+  Sparkles,
   X,
-  Radio,
+  Check,
 } from 'lucide-react';
 
 export const CitizenPortal: React.FC = () => {
   const { user, logout } = useAuth();
+  const {
+    complaints,
+    addComplaint,
+    garages,
+    activeGarage,
+    setActiveGarage,
+    selectSlot,
+    selectedSlot,
+    activeBooking,
+    confirmParkingBooking,
+    clearActiveBooking,
+    nodes,
+    calculateDijkstraRoute,
+    trigger112Sos,
+  } = useCitySync();
 
-  // Active view in sidebar
-  const [activeTab, setActiveTab] = useState<'home' | 'report'>('home');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Active Tab
+  const [activeTab, setActiveTab] = useState<'NAVIGATION' | 'PARKING' | 'REPORT' | 'SOS'>('NAVIGATION');
 
-  // SOS Emergency Modal State
-  const [sosModalOpen, setSosModalOpen] = useState(false);
-  const [sosTriggered, setSosTriggered] = useState(false);
-  const [sosEta] = useState(4);
-  const [sosLoading, setSosLoading] = useState(false);
+  // Tab A: Navigation States
+  const [originId, setOriginId] = useState('node-cp');
+  const [destId, setDestId] = useState('node-hosp1');
+  const [navRoute, setNavRoute] = useState<any | null>(null);
 
-  // Form State for "Report Public Problem"
+  // Tab B: Parking Booking States
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [vehicleNumber, setVehicleNumber] = useState('DL 03 CA 4892');
+  const [durationHours, setDurationHours] = useState(3);
+
+  // Tab C: Report Form States
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('POTHOLE');
+  const [category, setCategory] = useState<'POTHOLE' | 'TRAFFIC_LIGHT_FAILURE' | 'WATERLOGGING' | 'ROAD_HAZARD' | 'ILLEGAL_PARKING'>('POTHOLE');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
-  const [severity, setSeverity] = useState('MEDIUM');
-  const [submitting, setSubmitting] = useState(false);
-  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [urgency, setUrgency] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'EMERGENCY'>('HIGH');
+  const [dpdpConsent, setDpdpConsent] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState<string | null>(null);
 
-  // Map & Incidents state
-  const [myReports, setMyReports] = useState<any[]>([]);
-  const [selectedIncident, setSelectedIncident] = useState<any | null>(null);
+  // DPDP Privacy Vault State
+  const [privacyVaultOpen, setPrivacyVaultOpen] = useState(false);
+  const [dataExportedMsg, setDataExportedMsg] = useState<string | null>(null);
+  const [consentRevokedMsg, setConsentRevokedMsg] = useState<string | null>(null);
 
-  const fetchCitizenData = async () => {
-    try {
-      const overviewRes = await api.get('/api/citizen/incidents');
-      setMyReports(overviewRes.data.myReports || []);
-    } catch (err) {
-      console.error('Failed to load citizen data:', err);
-    }
+  // Export My Data (JSON) under DPDP Act 2023 Section 12
+  const handleExportData = () => {
+    const exportData = {
+      complianceStandard: 'DPDP Act 2023 (Section 12 - Right to Information)',
+      citizenProfile: {
+        name: user?.name || 'Verified Citizen',
+        email: user?.email || 'citizen@intelliflow.ai',
+        aadhaarMasked: 'XXXX-XXXX-8921',
+      },
+      submittedComplaints: complaints,
+      timestamp: new Date().toISOString(),
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `intellicivic_dpdp_export_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    setDataExportedMsg('Personal data package exported successfully in compliance with DPDP Act 2023.');
+    setTimeout(() => setDataExportedMsg(null), 4000);
   };
 
-  useEffect(() => {
-    fetchCitizenData();
-  }, []);
+  // Revoke Consent / Right to be Forgotten (DPDP Section 12)
+  const handleRevokeConsent = () => {
+    setConsentRevokedMsg('Data processing consent revoked. Personal identifiers queued for purge within 72 hours per DPDP Act Section 12(3).');
+    setTimeout(() => setConsentRevokedMsg(null), 5000);
+  };
 
-  const handleReportSubmit = async (e: React.FormEvent) => {
+  // Tab D: SOS States
+  const [sosActive, setSosActive] = useState(false);
+  const [sosEvent, setSosEvent] = useState<any | null>(null);
+
+  // Calculate Dijkstra Route
+  const handleCalculateRoute = () => {
+    const route = calculateDijkstraRoute(originId, destId);
+    setNavRoute(route);
+  };
+
+  // Submit Citizen Complaint
+  const handleComplaintSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setFormSuccess(null);
-    try {
-      await api.post('/api/citizen/incidents', {
-        title,
-        category,
-        location,
-        description,
-        severity,
-      });
-      setFormSuccess('Public problem report submitted successfully! Civic authorities notified.');
-      setTitle('');
-      setLocation('');
-      setDescription('');
-      fetchCitizenData();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to submit problem report.');
-    } finally {
-      setSubmitting(false);
-    }
+    const newComp = addComplaint({
+      title: title || 'Reported Civic Problem',
+      category,
+      location: location || 'Sector 4, Central Corridor',
+      urgency,
+      reportedBy: user?.name || 'Verified Citizen',
+      description: description || 'Civic issue reported via IntelliCivic mobile app.',
+    });
+    setReportSuccess(`Complaint #${newComp.code} logged and synced to IntelliWorks Municipal queue.`);
+    setTitle('');
+    setLocation('');
+    setDescription('');
+    setTimeout(() => setReportSuccess(null), 5000);
   };
 
-  const handleTriggerSOS = async () => {
-    setSosLoading(true);
-    try {
-      await api.post('/api/citizen/sos', {
-        location: 'Current Citizen Location (Sector 4 GPS)',
-        emergencyType: '112_GENERAL_DISTRESS',
-      });
-      setSosTriggered(true);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to trigger SOS.');
-    } finally {
-      setSosLoading(false);
-    }
+  // Confirm Parking Booking
+  const handleConfirmBooking = () => {
+    if (!activeGarage || !selectedSlot) return;
+    confirmParkingBooking(activeGarage.id, selectedSlot.id, vehicleNumber, durationHours);
+    setBookingModalOpen(false);
   };
+
+  // Trigger 112 SOS
+  const handleTriggerSos = () => {
+    const ev = trigger112Sos(user?.name || 'Rahul Sharma', 'Connaught Center Inner Circle, Gate 4');
+    setSosEvent(ev);
+    setSosActive(true);
+  };
+
+  // Prepare map polylines and markers for DualMapView
+  const mapPolylines: MapPolyline[] = navRoute
+    ? [
+        {
+          id: 'dijkstra-nav-path',
+          coordinates: navRoute.pathCoordinates,
+          color: '#2563eb',
+          weight: 6,
+          title: `Optimized Route (${navRoute.totalDistanceKm} km)`,
+        },
+      ]
+    : [];
+
+  const mapMarkers: MapMarker[] = nodes.map((n) => ({
+    id: n.id,
+    lat: n.coordinates[0],
+    lng: n.coordinates[1],
+    title: n.name,
+    category: n.category === 'HOSPITAL' ? 'HOSPITAL' : 'JUNCTION',
+    badge: n.category === 'HOSPITAL' ? 'H' : '•',
+    color: n.id === originId ? '#10b981' : n.id === destId ? '#2563eb' : '#64748b',
+    onClick: () => {
+      if (activeTab === 'NAVIGATION') {
+        if (!originId) setOriginId(n.id);
+        else setDestId(n.id);
+      }
+    },
+  }));
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row text-slate-900">
-      {/* Mobile Header Bar */}
-      <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-sm">
-            <Activity className="w-4 h-4" />
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900 select-none">
+      {/* 1. GIGW 3.0 Header Bar with Global Navigation Law */}
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 sm:px-6 py-2.5 flex items-center justify-between shadow-sm">
+        {/* Brand Mark Linking to / */}
+        <Link to="/" className="flex items-center space-x-3 group" title="Return to IntelliFlow OS Home">
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition-transform">
+            <Users className="w-5 h-5" />
           </div>
           <div>
-            <span className="font-bold text-sm text-slate-900">IntelliFlow AI</span>
-            <span className="text-[10px] text-blue-600 font-semibold block">Citizen Portal</span>
-          </div>
-        </div>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
-        >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-      </div>
-
-      {/* Sidebar Navigation */}
-      <aside
-        className={`w-full md:w-64 bg-white border-r border-slate-200 flex flex-col justify-between flex-shrink-0 z-20 ${
-          mobileMenuOpen ? 'block' : 'hidden md:flex'
-        }`}
-      >
-        <div className="p-6 space-y-6">
-          {/* Platform Logo */}
-          <div className="hidden md:flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-              <Activity className="w-6 h-6" />
+            <div className="flex items-center space-x-1.5">
+              <span className="font-black text-base text-slate-900 tracking-tight">IntelliCivic</span>
+              <span className="px-2 py-0.2 rounded-full bg-blue-50 text-blue-700 text-[10px] font-extrabold border border-blue-200">
+                CITIZEN 360°
+              </span>
             </div>
-            <div>
-              <div className="flex items-center space-x-1.5">
-                <span className="font-extrabold text-base text-slate-900 tracking-tight">IntelliFlow</span>
-                <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 text-[10px] font-black uppercase">
-                  AI
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 font-medium">Citizen Services</span>
-            </div>
+            <span className="text-[10px] text-slate-500 font-medium block">
+              Ministry of Housing & Urban Affairs • Smart Cities Portal
+            </span>
+          </div>
+        </Link>
+
+        {/* Center Tabs Navigation */}
+        <nav className="hidden md:flex items-center p-1 rounded-2xl bg-slate-100 border border-slate-200 space-x-1 text-xs font-bold">
+          <button
+            onClick={() => setActiveTab('NAVIGATION')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 ${
+              activeTab === 'NAVIGATION' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span>Smart Navigation</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('PARKING')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 ${
+              activeTab === 'PARKING' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ParkingSquare className="w-3.5 h-3.5" />
+            <span>Cinema Parking</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('REPORT')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 ${
+              activeTab === 'REPORT' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            <span>Report Incident</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('SOS')}
+            className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 ${
+              activeTab === 'SOS' ? 'bg-rose-600 text-white shadow-sm' : 'text-rose-600 hover:bg-rose-50'
+            }`}
+          >
+            <PhoneCall className="w-3.5 h-3.5" />
+            <span>112 SOS Distress</span>
+          </button>
+        </nav>
+
+        {/* User Info & Quick DPDP / SOS */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <button
+            onClick={() => setPrivacyVaultOpen(true)}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center space-x-1.5 border border-slate-200 transition-colors"
+            title="Open DPDP Privacy & Data Rights Vault"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">DPDP Vault</span>
+          </button>
+
+          <div className="hidden sm:flex flex-col text-right">
+            <span className="text-xs font-bold text-slate-800">{user?.name || 'Verified Citizen'}</span>
+            <span className="text-[10px] text-emerald-600 font-bold flex items-center justify-end space-x-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Aadhaar Verified</span>
+            </span>
           </div>
 
-          {/* User Profile Card */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-            <div className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider">Verified Resident</div>
-            <div className="font-bold text-xs text-slate-900 truncate">{user?.name}</div>
-            <div className="text-[11px] text-slate-500 truncate">{user?.email}</div>
-          </div>
+          <button
+            onClick={() => setActiveTab('SOS')}
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-600/20 flex items-center space-x-1.5"
+          >
+            <PhoneCall className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">112 SOS</span>
+          </button>
 
-          {/* Sidebar Nav Items */}
-          <nav className="space-y-1.5">
-            <button
-              onClick={() => {
-                setActiveTab('home');
-                setMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-                activeTab === 'home'
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <Home className="w-4 h-4" />
-              <span>Home</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('report');
-                setMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-                activeTab === 'report'
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              <span>Report Incident</span>
-            </button>
-          </nav>
-        </div>
-
-        {/* Sidebar Footer / Logout */}
-        <div className="p-4 border-t border-slate-100">
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-bold text-xs transition-all"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            title="Logout"
           >
             <LogOut className="w-4 h-4" />
-            <span>Logout</span>
           </button>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Top Greeting & Prominent 112 SOS Banner */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center space-x-2 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-              <span>CITIZEN DASHBOARD</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Hello, {user?.name || 'Citizen'}
-            </h1>
-            <p className="text-xs text-slate-500 max-w-xl">
-              Access real-time municipal traffic telemetry, report civic hazards, and broadcast distress beacons directly to emergency services.
-            </p>
-          </div>
-
-          {/* Prominent Red 112 SOS Emergency Button */}
-          <div className="w-full md:w-auto">
-            <button
-              onClick={() => {
-                setSosModalOpen(true);
-                setSosTriggered(false);
-              }}
-              className="w-full md:w-auto px-6 py-4 rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-sm sm:text-base shadow-lg shadow-rose-600/30 flex items-center justify-center space-x-3 transition-all animate-pulse"
-            >
-              <PhoneCall className="w-6 h-6 animate-bounce" />
-              <span>112 SOS EMERGENCY</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Main Grid: Live Traffic Map Card & Quick Problem Report Form */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Live Traffic Map Card (7 Cols) */}
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <Layers className="w-4 h-4" />
+      {/* 2. Main Body Grid */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Left Interactive Control Panel (Tabs Content) */}
+        <div className="w-full lg:w-[480px] xl:w-[540px] bg-white border-r border-slate-200 flex flex-col justify-between overflow-y-auto p-4 sm:p-6 space-y-4 z-10">
+          {/* GIGW 3.0 Breadcrumb Navigation Trail */}
+          <nav aria-label="Breadcrumb Trail" className="text-[11px] font-semibold text-slate-500 flex items-center space-x-1.5 pb-1 border-b border-slate-100">
+            <Link to="/" className="text-blue-600 hover:underline">Home</Link>
+            <span>/</span>
+            <span className="text-slate-700">Citizen 360°</span>
+            <span>/</span>
+            <span className="text-slate-900 font-bold">
+              {activeTab === 'NAVIGATION'
+                ? 'Smart Navigation'
+                : activeTab === 'PARKING'
+                ? 'Cinema Parking'
+                : activeTab === 'REPORT'
+                ? 'Report Incident'
+                : '112 SOS Distress'}
+            </span>
+          </nav>
+          {/* TAB A: SMART NAVIGATION & DIJKSTRA ENGINE */}
+          {activeTab === 'NAVIGATION' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Navigation className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">Live Traffic Map</h2>
-                  <p className="text-[11px] text-slate-500">Metropolitan Road Sensors & Incident Pins</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                  ● Live Telemetry
-                </span>
-              </div>
-            </div>
-
-            {/* Interactive SVG / Canvas Map Visualization */}
-            <div className="relative w-full h-80 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex flex-col justify-between p-4">
-              <div
-                className="absolute inset-0 opacity-40"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(#94a3b8 1.5px, transparent 1.5px), radial-gradient(#cbd5e1 1.5px, #f8fafc 1.5px)',
-                  backgroundSize: '24px 24px',
-                  backgroundPosition: '0 0, 12px 12px',
-                }}
-              />
-
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-                <line x1="10%" y1="35%" x2="90%" y2="35%" stroke="#cbd5e1" strokeWidth="10" strokeLinecap="round" />
-                <line x1="10%" y1="35%" x2="50%" y2="35%" stroke="#ef4444" strokeWidth="6" strokeLinecap="round" />
-                <line x1="50%" y1="35%" x2="90%" y2="35%" stroke="#22c55e" strokeWidth="6" strokeLinecap="round" />
-
-                <line x1="50%" y1="10%" x2="50%" y2="90%" stroke="#cbd5e1" strokeWidth="10" strokeLinecap="round" />
-                <line x1="50%" y1="10%" x2="50%" y2="60%" stroke="#f59e0b" strokeWidth="6" strokeLinecap="round" />
-                <line x1="50%" y1="60%" x2="50%" y2="90%" stroke="#22c55e" strokeWidth="6" strokeLinecap="round" />
-
-                <line x1="15%" y1="80%" x2="85%" y2="20%" stroke="#3b82f6" strokeWidth="4" strokeDasharray="6,6" />
-              </svg>
-
-              <div className="relative z-10 flex items-center justify-between text-xs">
-                <span className="px-2 py-1 rounded bg-white/90 shadow text-slate-700 font-bold text-[10px]">
-                  Sector A: Central Ring
-                </span>
-                <span className="px-2 py-1 rounded bg-white/90 shadow text-slate-700 font-bold text-[10px]">
-                  Sector D: Tech Zone
-                </span>
-              </div>
-
-              {/* Junction A Pin */}
-              <div
-                onClick={() =>
-                  setSelectedIncident({
-                    name: 'Junction A (Central Blvd)',
-                    status: 'HEAVY CONGESTION (84%)',
-                    details: 'Predicted Delay: +18m due to peak commute',
-                  })
-                }
-                className="absolute top-[32%] left-[47%] z-10 cursor-pointer transform -translate-x-1/2 -translate-y-1/2 group"
-              >
-                <div className="relative flex items-center justify-center">
-                  <div className="w-8 h-8 rounded-full bg-rose-500/20 animate-ping absolute" />
-                  <div className="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] font-black shadow-md border-2 border-white">
-                    A
-                  </div>
-                </div>
-                <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded whitespace-nowrap shadow-lg">
-                  Junction A: Severe Congestion
+                  <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                    Dijkstra Pathfinding & Flow Router
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Traffic-weighted graph engine avoiding congested corridors
+                  </p>
                 </div>
               </div>
 
-              {/* Junction B Pin */}
-              <div
-                onClick={() =>
-                  setSelectedIncident({
-                    name: 'Junction B (Metro Toll)',
-                    status: 'MODERATE (56%)',
-                    details: 'Traffic moving steadily at 32 km/h',
-                  })
-                }
-                className="absolute top-[32%] left-[75%] z-10 cursor-pointer transform -translate-x-1/2 -translate-y-1/2 group"
-              >
-                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black shadow-md border-2 border-white">
-                  B
-                </div>
-                <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded whitespace-nowrap shadow-lg">
-                  Junction B: Flow Clear
-                </div>
-              </div>
-
-              {/* Pothole Incident Marker */}
-              <div
-                onClick={() =>
-                  setSelectedIncident({
-                    name: 'Civic Report #1',
-                    status: 'POTHOLE HAZARD',
-                    details: 'Sector 4 right lane hazard. Crew dispatched.',
-                  })
-                }
-                className="absolute top-[65%] left-[48%] z-10 cursor-pointer transform -translate-x-1/2 -translate-y-1/2 group"
-              >
-                <div className="p-1 rounded-full bg-amber-500 text-white shadow-md border border-white">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                </div>
-                <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded whitespace-nowrap shadow-lg">
-                  Hazard: Pothole Reported
-                </div>
-              </div>
-
-              {/* Bottom Legend */}
-              <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 p-2 bg-white/90 backdrop-blur rounded-lg border border-slate-200 text-[10px]">
-                <div className="flex items-center space-x-3">
-                  <span className="flex items-center space-x-1 text-emerald-700 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> <span>Optimal (&lt;40%)</span>
-                  </span>
-                  <span className="flex items-center space-x-1 text-amber-700 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" /> <span>Moderate (40-70%)</span>
-                  </span>
-                  <span className="flex items-center space-x-1 text-rose-700 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" /> <span>Heavy (&gt;70%)</span>
-                  </span>
-                </div>
-                <span className="text-slate-500 font-medium">Click nodes to inspect details</span>
-              </div>
-            </div>
-
-            {/* Selected Node Details Box */}
-            {selectedIncident && (
-              <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs">
+              {/* Origin & Destination Selectors */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3 text-xs">
                 <div>
-                  <span className="font-bold text-blue-900">{selectedIncident.name}</span>
-                  <span className="ml-2 font-mono text-[10px] text-blue-700 font-bold bg-blue-100 px-1.5 py-0.5 rounded">
-                    {selectedIncident.status}
-                  </span>
-                  <p className="text-slate-600 text-[11px] mt-0.5">{selectedIncident.details}</p>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Origin / Starting Hub</span>
+                  </label>
+                  <select
+                    value={originId}
+                    onChange={(e) => setOriginId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {nodes.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span>Destination Hub</span>
+                  </label>
+                  <select
+                    value={destId}
+                    onChange={(e) => setDestId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {nodes.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
-                  onClick={() => setSelectedIncident(null)}
-                  className="text-slate-400 hover:text-slate-700 font-bold text-xs"
+                  onClick={handleCalculateRoute}
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2"
                 >
-                  ✕
+                  <Sparkles className="w-4 h-4" />
+                  <span>COMPUTE DIJKSTRA OPTIMIZED ROUTE</span>
                 </button>
               </div>
-            )}
-          </div>
 
-          {/* Quick Form: "Report Public Problem" (5 Cols) */}
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <div className="flex items-center space-x-2.5 border-b border-slate-100 pb-4">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Report Public Problem</h2>
-                <p className="text-[11px] text-slate-500">Potholes, Signal Malfunctions, Waterlogging</p>
-              </div>
-            </div>
-
-            {formSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{formSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleReportSubmit} className="space-y-3.5">
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Hazard Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="POTHOLE">Pothole / Road Damage</option>
-                  <option value="SIGNAL_FAILURE">Traffic Signal Failure / Blinking Amber</option>
-                  <option value="WATERLOGGING">Monsoon Waterlogging / Flooded Street</option>
-                  <option value="ACCIDENT">Traffic Accident / Blocked Lane</option>
-                  <option value="OTHER">Other Civic Obstruction</option>
-                </select>
-              </div>
-
-              {/* Title */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Issue Title</label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Deep crater near signal cross"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Location */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Location / Landmark</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                    <MapPin className="w-3.5 h-3.5" />
+              {/* Route Summary Results Card */}
+              {navRoute && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-indigo-50/60 border border-blue-200 space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-blue-950 uppercase tracking-wider text-[11px]">
+                      Optimal Route Computed
+                    </span>
+                    <span className="font-mono text-emerald-700 font-bold bg-emerald-100/80 px-2 py-0.5 rounded">
+                      Congestion Delay: +{navRoute.congestionDelayMinutes} min
+                    </span>
                   </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold block">TOTAL DISTANCE</span>
+                      <strong className="text-base text-slate-900 font-mono">{navRoute.totalDistanceKm} km</strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold block">ESTIMATED TIME</span>
+                      <strong className="text-base text-blue-700 font-mono">{navRoute.estimatedTimeMinutes} mins</strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold block">AVERAGE SPEED</span>
+                      <strong className="text-base text-slate-900 font-mono">{navRoute.averageSpeedKmh} km/h</strong>
+                    </div>
+                  </div>
+
+                  {/* Turn-by-Turn Steps */}
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Turn-by-Turn Guidance:</span>
+                    <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                      {navRoute.turnByTurnInstructions.map((inst: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-start space-x-2 text-[11px]"
+                        >
+                          <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[9px] flex-shrink-0 mt-0.5">
+                            {idx + 1}
+                          </div>
+                          <span className="text-slate-800 font-medium">{inst.instruction}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB B: VISUAL CINEMA-STYLE PARKING */}
+          {activeTab === 'PARKING' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <ParkingSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                    Interactive Visual Parking
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Cinema-seat layout model with instant digital QR pass
+                  </p>
+                </div>
+              </div>
+
+              {/* Garage Selector Tabs */}
+              <div className="grid grid-cols-1 gap-2">
+                {garages.map((g) => {
+                  const isSelected = activeGarage?.id === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => {
+                        setActiveGarage(g);
+                      }}
+                      className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-blue-50/80 border-blue-400 shadow-sm'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-extrabold text-xs text-slate-900">{g.name}</div>
+                        <div className="text-[11px] text-slate-500 font-medium">{g.address}</div>
+                        <div className="text-[10px] text-blue-600 font-bold mt-0.5">
+                          {g.distanceKm} km away • ₹{g.hourlyRateInr}/hour
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-black text-sm text-emerald-600">
+                          {g.availableSlots} / {g.totalSlots}
+                        </span>
+                        <span className="text-[9px] text-slate-400 block font-bold">SLOTS FREE</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Interactive Floor Plan (Cinema Grid) */}
+              {activeGarage && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-black text-slate-900">{activeGarage.name}</span>
+                      <span className="text-[10px] text-slate-500 block font-medium">Floor 1 - Live Occupancy</span>
+                    </div>
+                    {/* Legend */}
+                    <div className="flex items-center space-x-3 text-[10px] font-bold">
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2.5 h-2.5 rounded-md bg-emerald-500"></span>
+                        <span>Free</span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2.5 h-2.5 rounded-md bg-rose-500"></span>
+                        <span>Occupied</span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2.5 h-2.5 rounded-md bg-blue-600"></span>
+                        <span>Selected</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual Grid: Sections A, B, C */}
+                  {(['A', 'B', 'C'] as const).map((sec) => (
+                    <div key={sec} className="space-y-1.5">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        Section {sec} (Slots {sec}-01 to {sec}-08)
+                      </span>
+                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                        {activeGarage.slots
+                          .filter((s) => s.section === sec)
+                          .map((slot) => {
+                            const isSelected = selectedSlot?.id === slot.id;
+                            const isOccupied = slot.status === 'OCCUPIED';
+                            return (
+                              <button
+                                key={slot.id}
+                                disabled={isOccupied}
+                                onClick={() => selectSlot(activeGarage.id, slot.id)}
+                                className={`h-10 rounded-xl font-mono text-xs font-bold transition-all flex flex-col items-center justify-center ${
+                                  isOccupied
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-200 cursor-not-allowed opacity-80'
+                                    : isSelected
+                                    ? 'bg-blue-600 text-white shadow-md scale-105 border-2 border-blue-600'
+                                    : 'bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100'
+                                }`}
+                              >
+                                <span>{slot.code}</span>
+                                <span className="text-[8px] opacity-75">{slot.type === 'EV_CHARGING' ? '⚡' : 'P'}</span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Slot Booking Action Button */}
+                  {selectedSlot && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => setBookingModalOpen(true)}
+                        className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center space-x-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>BOOK SLOT {selectedSlot.code} & GENERATE QR PASS</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB C: CITIZEN INCIDENT REPORTER */}
+          {activeTab === 'REPORT' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                    Report Public Civic Incident
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Auto-synced in real-time to IntelliWorks Municipal Queue
+                  </p>
+                </div>
+              </div>
+
+              {reportSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 font-bold text-xs flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{reportSuccess}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleComplaintSubmit} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Issue Headline</label>
+                  <input
+                    type="text"
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Deep pothole cluster near underpass"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Category</label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="POTHOLE">Pothole / Road Damage</option>
+                      <option value="TRAFFIC_LIGHT_FAILURE">Traffic Signal Failure</option>
+                      <option value="WATERLOGGING">Waterlogging / Flood</option>
+                      <option value="ROAD_HAZARD">Debris / Road Hazard</option>
+                      <option value="ILLEGAL_PARKING">Illegal Lane Obstruction</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Urgency</label>
+                    <select
+                      value={urgency}
+                      onChange={(e) => setUrgency(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="LOW">Low (Routine)</option>
+                      <option value="MEDIUM">Medium (48 hrs)</option>
+                      <option value="HIGH">High Priority (12 hrs)</option>
+                      <option value="EMERGENCY">Emergency (Immediate)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Location Details</label>
                   <input
                     type="text"
                     required
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="e.g. Central Boulevard Sector 4 near Metro"
-                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. Sector 4, North Outer Service Lane"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
-              </div>
 
-              {/* Severity */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Severity Level</label>
-                <div className="grid grid-cols-3 gap-2 text-xs font-bold">
-                  {(['LOW', 'MEDIUM', 'HIGH'] as const).map((lvl) => (
-                    <button
-                      key={lvl}
-                      type="button"
-                      onClick={() => setSeverity(lvl)}
-                      className={`py-1.5 rounded-lg border text-center transition-all ${
-                        severity === lvl
-                          ? lvl === 'HIGH'
-                            ? 'bg-rose-50 border-rose-400 text-rose-800'
-                            : 'bg-blue-50 border-blue-400 text-blue-800'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
+                {/* DPDP Act 2023 Mandatory Consent Switch */}
+                <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 flex items-start space-x-2.5">
+                  <input
+                    type="checkbox"
+                    id="dpdp-consent-check"
+                    required
+                    checked={dpdpConsent}
+                    onChange={(e) => setDpdpConsent(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <label htmlFor="dpdp-consent-check" className="text-[11px] font-semibold text-slate-800 leading-snug cursor-pointer select-none">
+                    <strong className="text-blue-950 font-black">DPDP Consent:</strong> I authorize Aegis/IntelliFlow to process my location data strictly for this specific civic resolution under the Digital Personal Data Protection Act 2023.
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!dpdpConsent}
+                  className={`w-full py-3 rounded-xl font-black shadow-lg transition-all flex items-center justify-center space-x-2 ${
+                    dpdpConsent
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/30'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Send className="w-4 h-4" />
+                  <span>TRANSMIT COMPLAINT TO MUNICIPAL QUEUE</span>
+                </button>
+              </form>
+
+              {/* My Reported Complaints Tracker */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="text-[10px] font-extrabold uppercase text-slate-400">
+                  Live Tracked Complaints ({complaints.length})
+                </div>
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {complaints.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs"
                     >
-                      {lvl}
-                    </button>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-black text-slate-900">{c.code}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                            c.status === 'RESOLVED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : c.status === 'IN_PROGRESS'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {c.status}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-800">{c.title}</div>
+                      <div className="text-[11px] text-slate-500">{c.assignedDepartment}</div>
+                      {c.remarks && (
+                        <div className="text-[10px] text-slate-600 bg-white p-1.5 rounded-lg border border-slate-200 font-medium">
+                          <strong>Update:</strong> {c.remarks}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Description */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Detailed Description</label>
-                <textarea
-                  rows={2}
-                  required
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Provide any specific lane details, traffic blockage severity..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+          {/* TAB D: 112 SOS DISTRESS */}
+          {activeTab === 'SOS' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <PhoneCall className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-extrabold text-rose-950 uppercase tracking-wider">
+                    Emergency 112 SOS Dispatch
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Instant priority beacon to IntelliCommand & 108 EMS
+                  </p>
+                </div>
               </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{submitting ? 'Submitting Report...' : 'Submit Incident Report'}</span>
-              </button>
-            </form>
-          </div>
-        </div>
+              {/* Big Red SOS Button */}
+              <div className="text-center py-4 space-y-3">
+                <button
+                  onClick={handleTriggerSos}
+                  className="w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-br from-rose-500 via-rose-600 to-red-700 text-white font-black text-xl shadow-2xl shadow-rose-600/40 hover:scale-105 active:scale-95 transition-all mx-auto flex flex-col items-center justify-center space-y-1 border-4 border-white/40 animate-pulse"
+                >
+                  <ShieldAlert className="w-10 h-10" />
+                  <span>SOS 112</span>
+                  <span className="text-[9px] font-mono tracking-widest uppercase opacity-90">TAP TO TRIGGER</span>
+                </button>
+                <p className="text-xs text-slate-500 font-medium max-w-xs mx-auto">
+                  Broadcasting will immediately alert the nearest PCR van, dispatch a 108 Advanced Life Support ambulance, and notify the Command Center.
+                </p>
+              </div>
 
-        {/* My Reported Grievances History Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900">My Submitted Problem Reports</h3>
-            <span className="text-xs text-slate-500">{myReports.length} Total Reports</span>
-          </div>
+              {/* Active SOS Tracker */}
+              {sosActive && sosEvent && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-3 text-xs animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between border-b border-rose-200/60 pb-2">
+                    <span className="font-mono font-black text-rose-900">{sosEvent.code}</span>
+                    <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px] animate-pulse">
+                      CODE RED ACTIVE
+                    </span>
+                  </div>
 
-          {myReports.length === 0 ? (
-            <p className="text-xs text-slate-500 py-4 text-center">No problem reports filed yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-500 font-semibold">
-                    <th className="pb-2">ID</th>
-                    <th className="pb-2">Hazard Title</th>
-                    <th className="pb-2">Category</th>
-                    <th className="pb-2">Location</th>
-                    <th className="pb-2">Severity</th>
-                    <th className="pb-2">Status</th>
-                    <th className="pb-2">Assigned Authority</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {myReports.map((report) => (
-                    <tr key={report.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 font-mono text-slate-500">#{report.id}</td>
-                      <td className="py-2.5 font-bold text-slate-900">{report.title}</td>
-                      <td className="py-2.5">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
-                          {report.category}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-slate-600">{report.location}</td>
-                      <td className="py-2.5">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            report.severity === 'CRITICAL' || report.severity === 'HIGH'
-                              ? 'bg-rose-100 text-rose-800'
-                              : report.severity === 'MEDIUM'
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {report.severity}
-                        </span>
-                      </td>
-                      <td className="py-2.5">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            report.status === 'RESOLVED'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : report.status === 'IN_PROGRESS'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-amber-100 text-amber-900'
-                          }`}
-                        >
-                          {report.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-slate-500 text-[11px]">{report.assigned_department || 'Municipal Corp'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  <div className="space-y-1 text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Assigned Unit:</span>
+                      <strong className="text-slate-900">{sosEvent.assignedAmbulanceUnit}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Destination Hub:</span>
+                      <strong className="text-slate-900">{sosEvent.destinationHospital}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Estimated Arrival:</span>
+                      <strong className="text-emerald-700 font-mono text-sm">{sosEvent.etaMinutes} minutes</strong>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-white border border-rose-200 text-[11px] font-bold text-rose-900 flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>Green Corridor signal priority requested for ambulance route.</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-      </main>
 
-      {/* 112 SOS Emergency Modal */}
-      {sosModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border-2 border-rose-300 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-6 text-center">
-            {!sosTriggered ? (
-              <>
-                <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto animate-pulse">
-                  <PhoneCall className="w-8 h-8" />
-                </div>
-                <div className="space-y-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black uppercase">
-                    National Emergency Service
-                  </span>
-                  <h3 className="text-xl font-extrabold text-slate-900">Broadcast 112 SOS Distress Signal?</h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    This will immediately broadcast your exact GPS coordinates to the Metropolitan Police Command, 108 Emergency Medical Services, and Fire Control.
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setSosModalOpen(false)}
-                    className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleTriggerSOS}
-                    disabled={sosLoading}
-                    className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50"
-                  >
-                    {sosLoading ? 'Broadcasting...' : 'CONFIRM SOS (112)'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                  <Radio className="w-8 h-8 animate-pulse" />
-                </div>
-                <div className="space-y-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
-                    SOS ACTIVE • UNITS DISPATCHED
-                  </span>
-                  <h3 className="text-xl font-extrabold text-slate-900">Help is on the way</h3>
-                  <p className="text-xs text-slate-600">
-                    Emergency Squad 09 & Ambulance Alpha-108 have received your beacon with priority green wave corridor clearance.
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                  <div className="text-xs text-slate-500 font-semibold">Estimated Responder ETA</div>
-                  <div className="text-3xl font-black text-rose-600 font-mono">{sosEta} Minutes</div>
-                </div>
-                <button
-                  onClick={() => setSosModalOpen(false)}
-                  className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
-                >
-                  Close & Keep Beacon Active
-                </button>
-              </>
+        {/* Right Hero Map Panel */}
+        <main className="flex-1 relative h-full min-h-[420px] lg:min-h-full bg-slate-200">
+          <DualMapView
+            center={[28.6139, 77.2090]}
+            zoom={14}
+            markers={mapMarkers}
+            polylines={mapPolylines}
+            showControls={true}
+          />
+        </main>
+      </div>
+
+      {/* Booking Confirmation & QR Pass Modal */}
+      {bookingModalOpen && selectedSlot && activeGarage && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-200 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-blue-700">
+                <ParkingSquare className="w-5 h-5" />
+                <h3 className="text-base font-extrabold text-slate-900">Confirm Smart Parking Pass</h3>
+              </div>
+              <button
+                onClick={() => setBookingModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-1">
+              <div className="text-xs font-black text-slate-900">{activeGarage.name}</div>
+              <div className="text-blue-700 font-bold">
+                Selected Slot: <strong className="font-mono text-base">{selectedSlot.code}</strong> ({selectedSlot.type})
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Vehicle Registration Number</label>
+                <input
+                  type="text"
+                  required
+                  value={vehicleNumber}
+                  onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+                  placeholder="e.g. DL 01 AB 1234"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 flex justify-between">
+                  <span>Duration</span>
+                  <strong className="text-blue-600 font-mono">{durationHours} Hours</strong>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="8"
+                  value={durationHours}
+                  onChange={(e) => setDurationHours(parseInt(e.target.value, 10))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-600">Total Tariff Amount:</span>
+                <strong className="text-base font-black text-slate-900 font-mono">
+                  ₹{activeGarage.hourlyRateInr * durationHours}
+                </strong>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setBookingModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBooking}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md shadow-blue-600/20 flex items-center justify-center space-x-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>CONFIRM & GET PASS</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generated Digital QR Pass Modal */}
+      {activeBooking && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 space-y-4 text-center animate-in zoom-in-95 duration-200 text-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+
+            <div>
+              <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                PARKING CONFIRMED
+              </span>
+              <h3 className="text-base font-black text-slate-900 mt-1">{activeBooking.passCode}</h3>
+              <p className="text-[11px] text-slate-500 font-medium">{activeBooking.garageName}</p>
+            </div>
+
+            {/* Simulated QR Code Canvas Box */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 inline-block shadow-inner">
+              <div className="w-36 h-36 bg-white p-2 border border-slate-300 rounded-xl flex items-center justify-center mx-auto shadow-sm">
+                <QrCode className="w-32 h-32 text-slate-900" />
+              </div>
+              <span className="text-[9px] font-mono text-slate-400 block mt-1.5">SCAN AT BOOM BARRIER</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-left space-y-1 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Reserved Slot:</span>
+                <strong className="text-blue-700 font-mono text-xs">{activeBooking.slotCode}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Vehicle Number:</span>
+                <strong className="text-slate-900 font-mono">{activeBooking.vehicleNumber}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Valid Until:</span>
+                <strong className="text-slate-900">{activeBooking.validUntil}</strong>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200">
+                <span className="text-slate-500">Amount Paid:</span>
+                <strong className="text-emerald-700 font-mono text-xs font-black">₹{activeBooking.totalAmountInr}</strong>
+              </div>
+            </div>
+
+            <button
+              onClick={clearActiveBooking}
+              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-colors"
+            >
+              Done & Save to Wallet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DPDP ACT 2023 CITIZEN PRIVACY VAULT MODAL */}
+      {privacyVaultOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in zoom-in-95 duration-150 relative">
+            <button
+              onClick={() => setPrivacyVaultOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  DPDP Act 2023 Compliant
+                </span>
+                <h3 className="text-base font-black text-slate-900 mt-0.5">Citizen Data & Privacy Vault</h3>
+                <p className="text-xs text-slate-500 font-medium">Manage your personal civic data and privacy rights</p>
+              </div>
+            </div>
+
+            {/* Notice Messages */}
+            {dataExportedMsg && (
+              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 font-bold text-xs flex items-center space-x-2">
+                <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>{dataExportedMsg}</span>
+              </div>
             )}
+
+            {consentRevokedMsg && (
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 font-bold text-xs flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>{consentRevokedMsg}</span>
+              </div>
+            )}
+
+            {/* Privacy Summary Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between font-bold text-slate-800">
+                <span>Citizen Telemetry ID:</span>
+                <span className="font-mono text-blue-700">#CIT-DL-8921-X</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Active Consented Services:</span>
+                <span className="font-bold text-slate-800">Smart Navigation, Incident Reporting</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Data Retention Policy:</span>
+                <span className="font-bold text-emerald-700">Auto-Purge after 30 Days</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3 pt-1">
+              <button
+                onClick={handleExportData}
+                className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Export My Data (JSON) — Section 12 Right</span>
+              </button>
+
+              <button
+                onClick={handleRevokeConsent}
+                className="w-full py-3 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs border border-rose-200 transition-all flex items-center justify-center space-x-2"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>Revoke Data Consent / Right to be Forgotten</span>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-400 text-center font-medium">
+              Operated under Section 12(3) & Section 14 of the Digital Personal Data Protection Act, 2023.
+            </p>
           </div>
         </div>
       )}
     </div>
   );
 };
+
+export default CitizenPortal;

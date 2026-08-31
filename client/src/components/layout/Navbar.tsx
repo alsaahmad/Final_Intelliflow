@@ -45,8 +45,8 @@ export const Navbar: React.FC = () => {
       {/* Main Glassmorphism Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
-          {/* Brand Logo */}
-          <Link to="/" className="flex items-center space-x-3 group">
+          {/* Brand Logo with Global Navigation Law */}
+          <Link to="/" className="flex items-center space-x-3 group" title="Return to IntelliFlow OS Home">
             <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
               <Activity className="w-5 h-5" />
             </div>
@@ -56,11 +56,11 @@ export const Navbar: React.FC = () => {
                   IntelliFlow
                 </span>
                 <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 text-[10px] font-black tracking-widest uppercase border border-blue-200">
-                  AI
+                  OS
                 </span>
               </div>
               <p className="text-[10px] font-semibold text-slate-500 hidden sm:block -mt-0.5">
-                Smart City Traffic Intelligence
+                Smart-City Traffic Intelligence Platform
               </p>
             </div>
           </Link>

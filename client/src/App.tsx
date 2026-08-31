@@ -17,11 +17,14 @@ import { Login } from './pages/Login';
 import { Unauthorized } from './pages/Unauthorized';
 import { NotFound } from './pages/NotFound';
 
-// 4 Main Role Portals
+// Role Portals & Flagship Urban Digital Twin
 import { CitizenPortal } from './pages/portals/CitizenPortal';
 import { TrafficPolicePortal } from './pages/portals/TrafficPolicePortal';
 import { MunicipalPortal } from './pages/portals/MunicipalPortal';
 import { CommandCenterPortal } from './pages/portals/CommandCenterPortal';
+import { AmbulancePortal } from './pages/portals/AmbulancePortal';
+import { HospitalPortal } from './pages/portals/HospitalPortal';
+import { DigitalTwinDashboard } from './digitalTwin/DigitalTwinDashboard';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -39,6 +42,25 @@ export const AppRoutes: React.FC = () => {
         {/* 🔐 View 1: Auth Screen (Login / Register) */}
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+
+        {/* 🏙️ Flagship: AEGIS Urban Digital Twin Command Center */}
+        <Route path="/digital-twin" element={<DigitalTwinDashboard />} />
+        <Route
+          path="/command-center"
+          element={
+            <ProtectedRoute requiredRoles={['COMMAND_CENTER', 'ADMIN']}>
+              <DigitalTwinDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/command-center/telemetry"
+          element={
+            <ProtectedRoute requiredRoles={['COMMAND_CENTER', 'ADMIN']}>
+              <CommandCenterPortal />
+            </ProtectedRoute>
+          }
+        />
 
         {/* 👤 View 2: Citizen Portal (Role: CITIZEN) */}
         <Route
@@ -70,12 +92,22 @@ export const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* 📡 View 5: Command Center (Role: COMMAND_CENTER) */}
+        {/* 🚑 View 5: Ambulance Portal (Role: AMBULANCE_RESPONDER) */}
         <Route
-          path="/command-center"
+          path="/ambulance"
           element={
-            <ProtectedRoute requiredRoles={['COMMAND_CENTER']}>
-              <CommandCenterPortal />
+            <ProtectedRoute requiredRoles={['AMBULANCE_RESPONDER', 'COMMAND_CENTER', 'CITIZEN', 'TRAFFIC_POLICE']}>
+              <AmbulancePortal />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🏥 View 6: Hospital Emergency Portal (Role: HOSPITAL) */}
+        <Route
+          path="/hospital"
+          element={
+            <ProtectedRoute requiredRoles={['HOSPITAL', 'COMMAND_CENTER', 'CITIZEN', 'TRAFFIC_POLICE']}>
+              <HospitalPortal />
             </ProtectedRoute>
           }
         />
@@ -90,11 +122,24 @@ export const AppRoutes: React.FC = () => {
   );
 };
 
+import { CitySyncProvider } from './context/CitySyncContext';
+import { AccessibilityProvider } from './context/AccessibilityContext';
+import { GigwAccessibilityBar } from './components/compliance/GigwAccessibilityBar';
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <AccessibilityProvider>
+          <CitySyncProvider>
+            <div className="flex flex-col min-h-screen">
+              <GigwAccessibilityBar />
+              <div className="flex-1">
+                <AppRoutes />
+              </div>
+            </div>
+          </CitySyncProvider>
+        </AccessibilityProvider>
       </AuthProvider>
     </BrowserRouter>
   );

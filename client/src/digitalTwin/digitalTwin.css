@@ -1,0 +1,98 @@
+@import 'leaflet/dist/leaflet.css';
+
+/* Custom Futuristic Light Digital Twin Styles */
+
+/* 2.5D Isometric/Perspective Tilt Mode */
+.map-perspective-3d {
+  transform: perspective(1000px) rotateX(20deg) scale(1.02);
+  transform-origin: center center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.map-perspective-2d {
+  transform: perspective(1000px) rotateX(0deg) scale(1);
+  transform-origin: center center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Marker Pulse Animations */
+@keyframes twin-pulse-glow {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes twin-blue-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes twin-corridor-wave {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-incident-pulse {
+  animation: twin-pulse-glow 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+.animate-ambulance-beacon {
+  animation: twin-blue-pulse 1.8s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+.corridor-dash-active {
+  stroke-dasharray: 8, 8;
+  animation: twin-corridor-wave 1s linear infinite;
+}
+
+/* Custom Marker Tooltip / Popover */
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(8px) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 30px -6px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(226, 232, 240, 0.8) !important;
+  padding: 0 !important;
+  color: #0f172a !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip {
+  background: white !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Hide default leaflet attribution styling overflow */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  font-size: 10px !important;
+  border-radius: 6px !important;
+  padding: 2px 6px !important;
+  margin: 4px !important;
+}

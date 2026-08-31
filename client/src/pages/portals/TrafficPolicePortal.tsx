@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/authClient';
 import {
   Car,
+  ShieldCheck,
   Map as MapIcon,
   TrendingUp,
   Cpu,
@@ -83,17 +85,17 @@ export const TrafficPolicePortal: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row text-slate-900">
-      {/* Mobile Header */}
+      {/* Mobile Header Bar */}
       <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-sm">
-            <Car className="w-4 h-4" />
+        <Link to="/" className="flex items-center space-x-2.5" title="Return to IntelliFlow OS Home">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+            <ShieldCheck className="w-4 h-4" />
           </div>
           <div>
-            <span className="font-bold text-sm text-slate-900">IntelliFlow AI</span>
+            <span className="font-bold text-sm text-slate-900">IntelliGuard</span>
             <span className="text-[10px] text-indigo-600 font-semibold block">Traffic Police Console</span>
           </div>
-        </div>
+        </Link>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -109,21 +111,21 @@ export const TrafficPolicePortal: React.FC = () => {
         }`}
       >
         <div className="p-6 space-y-6">
-          {/* Logo */}
-          <div className="hidden md:flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <Car className="w-6 h-6" />
+          {/* Logo with Global Navigation Law */}
+          <Link to="/" className="hidden md:flex items-center space-x-3 group" title="Return to IntelliFlow OS Home">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-1.5">
-                <span className="font-extrabold text-base text-slate-900 tracking-tight">IntelliFlow</span>
+                <span className="font-black text-base text-slate-900 tracking-tight">IntelliGuard</span>
                 <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">
-                  AI
+                  POLICE
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 font-medium">Traffic Police Console</span>
             </div>
-          </div>
+          </Link>
 
           {/* Officer Profile Card */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
@@ -307,13 +309,16 @@ export const TrafficPolicePortal: React.FC = () => {
               </span>
             </div>
 
-            <div className="relative z-10 bg-white/90 backdrop-blur rounded-lg p-2 border border-slate-200 flex items-center justify-between text-[10px]">
+            <div className="relative z-10 bg-white/95 backdrop-blur rounded-lg p-2 border border-slate-200 flex flex-wrap items-center justify-between text-[10px] gap-2">
               <div className="flex items-center space-x-3 font-semibold">
                 <span className="text-rose-700">● Red: Heavy Congestion (&gt;80%)</span>
                 <span className="text-amber-700">● Yellow: Medium Traffic</span>
                 <span className="text-emerald-700">● Green: Free Wave</span>
               </div>
-              <span className="text-slate-500 font-medium">Automatic CCTV AI Object Detection Active</span>
+              <div className="flex items-center space-x-1.5 text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 font-extrabold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                <span>DPDP Privacy Mode: Edge-Level Face & Plate Blurring Active</span>
+              </div>
             </div>
           </div>
 

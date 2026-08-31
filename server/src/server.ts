@@ -8,6 +8,8 @@ import { citizenRouter } from './routes/citizen';
 import { trafficPoliceRouter } from './routes/trafficPolice';
 import { municipalRouter } from './routes/municipal';
 import { commandCenterRouter } from './routes/commandCenter';
+import { ambulanceRouter } from './routes/ambulance';
+import { hospitalRouter } from './routes/hospital';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createServer() {
@@ -40,7 +42,7 @@ export function createServer() {
   app.get('/health', (_req, res) => {
     res.json({
       status: 'HEALTHY',
-      service: 'IntelliFlow AI Backend Server',
+      service: 'AEGIS Urban Digital Twin Backend Server',
       databaseEngine: getDbEngine(),
       timestamp: new Date().toISOString(),
     });
@@ -52,6 +54,8 @@ export function createServer() {
   app.use('/api/traffic-police', trafficPoliceRouter);
   app.use('/api/municipal', municipalRouter);
   app.use('/api/command', commandCenterRouter);
+  app.use('/api/ambulance', ambulanceRouter);
+  app.use('/api/hospital', hospitalRouter);
 
   // Backward compatibility alias for /auth
   app.use('/auth', authRouter);
@@ -87,7 +91,7 @@ export async function startServer() {
   return server;
 }
 
-if (require.main === module) {
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   startServer().catch((err) => {
     console.error('Fatal startup error:', err);
     process.exit(1);

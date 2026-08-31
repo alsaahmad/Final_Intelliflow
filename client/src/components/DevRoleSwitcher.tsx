@@ -13,10 +13,12 @@ export const DevRoleSwitcher: React.FC = () => {
   if (!isAuthenticated) return null;
 
   const roleAccounts: { id: UserRole; email: string; label: string; desc: string; path: string; dotColor: string }[] = [
-    { id: 'CITIZEN', email: 'citizen@intelliflow.ai', label: 'Citizen Portal', desc: 'Civic reporting, traffic map, 112 SOS', path: '/citizen', dotColor: 'bg-blue-500' },
-    { id: 'TRAFFIC_POLICE', email: 'police@intelliflow.ai', label: 'Traffic Police', desc: 'Signal override, AI predictions, what-if sim', path: '/traffic-police', dotColor: 'bg-indigo-600' },
-    { id: 'MUNICIPAL_CORP', email: 'municipal@intelliflow.ai', label: 'Municipal Corp', desc: 'Projects, approvals, closure simulation', path: '/municipal', dotColor: 'bg-teal-600' },
-    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'Command Center', desc: 'City analytics, emergency monitoring, logs', path: '/command-center', dotColor: 'bg-amber-500' },
+    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'Urban Digital Twin (ICCC)', desc: 'Live spatial map, simulation, prediction', path: '/command-center', dotColor: 'bg-blue-600' },
+    { id: 'TRAFFIC_POLICE', email: 'police@intelliflow.ai', label: 'Traffic Police Console', desc: 'Signal override, AI predictions, tactical flow', path: '/traffic-police', dotColor: 'bg-indigo-600' },
+    { id: 'CITIZEN', email: 'citizen@intelliflow.ai', label: 'Citizen Services Portal', desc: 'Civic reporting, traffic radar, 112 SOS', path: '/citizen', dotColor: 'bg-blue-500' },
+    { id: 'MUNICIPAL_CORP', email: 'municipal@intelliflow.ai', label: 'Municipal Corporation', desc: 'Projects, approvals, closure simulation', path: '/municipal', dotColor: 'bg-teal-600' },
+    { id: 'CITIZEN', email: 'citizen@intelliflow.ai', label: '108 Ambulance Unit (EMS)', desc: 'Green corridor wave, patient vitals stream', path: '/ambulance', dotColor: 'bg-rose-500' },
+    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'Hospital Emergency Desk', desc: 'Trauma bays, ICU bed inventory & ETA', path: '/hospital', dotColor: 'bg-emerald-500' },
   ];
 
   const handleRoleChange = async (targetEmail: string, path: string) => {

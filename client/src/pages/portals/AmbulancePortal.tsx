@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -84,10 +85,10 @@ export const AmbulancePortal: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 space-y-8">
-      {/* Top Banner */}
+      {/* Top Banner with Global Navigation Law */}
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between light-card p-6 border-slate-200 bg-white shadow-card gap-4">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md">
+        <Link to="/" className="flex items-center space-x-4 group" title="Return to IntelliFlow OS Home">
+          <div className="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
             <PhoneCall className="w-6 h-6 animate-pulse" />
           </div>
           <div>
@@ -102,7 +103,7 @@ export const AmbulancePortal: React.FC = () => {
             </h1>
             <p className="text-xs text-slate-500">Status: <strong className="text-rose-600">{mission?.paramedicStatus || 'ACTIVE MISSION'}</strong></p>
           </div>
-        </div>
+        </Link>
 
         <div className="flex items-center space-x-3">
           <button
