@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { DevRoleSwitcher } from './components/DevRoleSwitcher';
@@ -20,8 +20,7 @@ import { NotFound } from './pages/NotFound';
 // Role Portals & Flagship Urban Digital Twin
 import { CitizenPortal } from './pages/portals/CitizenPortal';
 import { TrafficPolicePortal } from './pages/portals/TrafficPolicePortal';
-import { MunicipalPortal } from './pages/portals/MunicipalPortal';
-import { CommandCenterPortal } from './pages/portals/CommandCenterPortal';
+import { CityOperationsPortal } from './pages/portals/CityOperationsPortal';
 import { AmbulancePortal } from './pages/portals/AmbulancePortal';
 import { HospitalPortal } from './pages/portals/HospitalPortal';
 import { DigitalTwinDashboard } from './digitalTwin/DigitalTwinDashboard';
@@ -43,30 +42,47 @@ export const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
-        {/* 🏙️ Flagship: AEGIS Urban Digital Twin Command Center */}
+        {/* 🏙️ Flagship: AEGIS Urban Digital Twin */}
         <Route path="/digital-twin" element={<DigitalTwinDashboard />} />
+
+        {/* 🏛️ Unified City Operations Portal (Consolidated Command Center + Municipal) */}
         <Route
-          path="/command-center"
+          path="/city-operations"
           element={
-            <ProtectedRoute requiredRoles={['COMMAND_CENTER', 'ADMIN']}>
-              <DigitalTwinDashboard />
+            <ProtectedRoute
+              requiredRoles={[
+                'CITY_OPERATIONS',
+                'COMMAND_CENTER',
+                'MUNICIPAL_CORP',
+                'MUNICIPAL_CORPORATION',
+                'MUNICIPAL_ENGINEER',
+                'ADMIN',
+              ]}
+            >
+              <CityOperationsPortal />
             </ProtectedRoute>
           }
         />
+
+        {/* 🔄 Legacy Routes Safe Redirection / Fallbacks */}
+        <Route
+          path="/command-center"
+          element={<Navigate to="/city-operations?tab=overview" replace />}
+        />
         <Route
           path="/command-center/telemetry"
-          element={
-            <ProtectedRoute requiredRoles={['COMMAND_CENTER', 'ADMIN']}>
-              <CommandCenterPortal />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/city-operations?tab=analytics" replace />}
+        />
+        <Route
+          path="/municipal"
+          element={<Navigate to="/city-operations?tab=complaints" replace />}
         />
 
         {/* 👤 View 2: Citizen Portal (Role: CITIZEN) */}
         <Route
           path="/citizen"
           element={
-            <ProtectedRoute requiredRoles={['CITIZEN', 'COMMAND_CENTER']}>
+            <ProtectedRoute requiredRoles={['CITIZEN', 'COMMAND_CENTER', 'CITY_OPERATIONS', 'ADMIN']}>
               <CitizenPortal />
             </ProtectedRoute>
           }
@@ -76,18 +92,8 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="/traffic-police"
           element={
-            <ProtectedRoute requiredRoles={['TRAFFIC_POLICE', 'COMMAND_CENTER']}>
+            <ProtectedRoute requiredRoles={['TRAFFIC_POLICE', 'COMMAND_CENTER', 'CITY_OPERATIONS', 'ADMIN']}>
               <TrafficPolicePortal />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* 🏛️ View 4: Municipal Corporation Portal (Role: MUNICIPAL_CORP) */}
-        <Route
-          path="/municipal"
-          element={
-            <ProtectedRoute requiredRoles={['MUNICIPAL_CORP', 'MUNICIPAL_CORPORATION', 'COMMAND_CENTER']}>
-              <MunicipalPortal />
             </ProtectedRoute>
           }
         />
@@ -96,7 +102,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="/ambulance"
           element={
-            <ProtectedRoute requiredRoles={['AMBULANCE_RESPONDER', 'COMMAND_CENTER', 'CITIZEN', 'TRAFFIC_POLICE']}>
+            <ProtectedRoute requiredRoles={['AMBULANCE_RESPONDER', 'COMMAND_CENTER', 'CITY_OPERATIONS', 'CITIZEN', 'TRAFFIC_POLICE', 'ADMIN']}>
               <AmbulancePortal />
             </ProtectedRoute>
           }
@@ -106,7 +112,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="/hospital"
           element={
-            <ProtectedRoute requiredRoles={['HOSPITAL', 'COMMAND_CENTER', 'CITIZEN', 'TRAFFIC_POLICE']}>
+            <ProtectedRoute requiredRoles={['HOSPITAL', 'COMMAND_CENTER', 'CITY_OPERATIONS', 'CITIZEN', 'TRAFFIC_POLICE', 'ADMIN']}>
               <HospitalPortal />
             </ProtectedRoute>
           }

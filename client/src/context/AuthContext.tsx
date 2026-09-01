@@ -22,11 +22,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return '/citizen';
       case 'TRAFFIC_POLICE':
         return '/traffic-police';
+      case 'CITY_OPERATIONS':
       case 'MUNICIPAL_CORP':
       case 'MUNICIPAL_CORPORATION':
-        return '/municipal';
+      case 'MUNICIPAL_ENGINEER':
       case 'COMMAND_CENTER':
-        return '/command-center';
+      case 'ADMIN':
+        return '/city-operations';
       default:
         return '/login';
     }

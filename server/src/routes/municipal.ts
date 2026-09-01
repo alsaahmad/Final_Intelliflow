@@ -5,7 +5,16 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 export const municipalRouter = Router();
 
 municipalRouter.use(authenticateToken);
-municipalRouter.use(authorizeRoles(['MUNICIPAL_CORP', 'MUNICIPAL_CORPORATION', 'COMMAND_CENTER']));
+municipalRouter.use(
+  authorizeRoles([
+    'MUNICIPAL_CORP',
+    'MUNICIPAL_CORPORATION',
+    'MUNICIPAL_ENGINEER',
+    'COMMAND_CENTER',
+    'CITY_OPERATIONS',
+    'ADMIN',
+  ])
+);
 
 /**
  * GET /api/municipal/overview

@@ -636,7 +636,7 @@ export const Home: React.FC = () => {
               </div>
             </div>
 
-            {/* Card 2: Municipal Corporation */}
+            {/* Card 2: City Operations */}
             <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 border border-slate-200 hover:border-teal-400 hover:shadow-xl hover:-translate-y-1 transition-all space-y-4 flex flex-col justify-between group">
               <div className="space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -644,12 +644,12 @@ export const Home: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-[10px] font-black text-teal-800 uppercase tracking-widest block">
-                    Urban Infrastructure
+                    Municipal & Command Governance
                   </span>
-                  <h3 className="text-xl font-extrabold text-slate-900 mt-1">Municipal Corp</h3>
+                  <h3 className="text-xl font-extrabold text-slate-900 mt-1">City Operations</h3>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                  Use Digital Twins to simulate road closures and capital works before spending tax funds. Monitor contractor milestones and resolve public grievance tickets.
+                  Consolidated command hub to simulate road closures, triage citizen grievances, track capital projects, and monitor citywide arterial flow telemetry.
                 </p>
               </div>
 
@@ -658,7 +658,7 @@ export const Home: React.FC = () => {
                   to="/login"
                   className="text-xs font-extrabold text-teal-700 group-hover:text-teal-800 flex items-center space-x-1"
                 >
-                  <span>Enter Municipal Portal</span>
+                  <span>Enter City Operations</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>

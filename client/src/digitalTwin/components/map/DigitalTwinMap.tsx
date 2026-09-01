@@ -6,7 +6,10 @@ import { CITY_CENTER, DEFAULT_MAP_ZOOM } from '../../data/seedTwinData';
 import { Road } from '../../types';
 import '../../digitalTwin.css';
 
+const MAPPLS_KEY = import.meta.env.VITE_MAPPLS_API_KEY || 'ckytfxntdvupxhoixsiypuzyouwykylfmogm';
+
 const TILE_URLS = {
+  mappls: `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_KEY}/still_map/{z}/{x}/{y}.png`,
   positron: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   osm: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -42,7 +45,7 @@ export const DigitalTwinMap: React.FC = () => {
 
   const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_MAP_ZOOM);
   const [is3DMode, setIs3DMode] = useState<boolean>(false);
-  const [tileTheme, setTileTheme] = useState<'positron' | 'voyager' | 'osm'>('voyager');
+  const [tileTheme, setTileTheme] = useState<'voyager' | 'positron' | 'osm' | 'mappls'>('voyager');
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -60,8 +63,14 @@ export const DigitalTwinMap: React.FC = () => {
     const tileLayer = L.tileLayer(TILE_URLS[tileTheme], {
       maxZoom: 19,
       subdomains: 'abcd',
-      attribution: '© OpenStreetMap contributors, © CARTO',
+      attribution: '© OpenStreetMap contributors, © CARTO, © Mappls',
     }).addTo(map);
+
+    tileLayer.on('tileerror', () => {
+      if (tileLayerRef.current && tileTheme === 'mappls') {
+        tileLayerRef.current.setUrl(TILE_URLS.voyager);
+      }
+    });
 
     tileLayerRef.current = tileLayer;
 
@@ -71,6 +80,22 @@ export const DigitalTwinMap: React.FC = () => {
 
     const routesGroup = L.layerGroup().addTo(map);
     routePolylinesGroupRef.current = routesGroup;
+
+    // Invalidate size after mount and resize to ensure full canvas rendering
+    setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 200);
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
 
     // Track Zoom Changes
     map.on('zoomend', () => {
@@ -485,9 +510,10 @@ export const DigitalTwinMap: React.FC = () => {
 
   const handleCycleTileTheme = () => {
     setTileTheme((prev) => {
+      if (prev === 'mappls') return 'voyager';
       if (prev === 'voyager') return 'positron';
       if (prev === 'positron') return 'osm';
-      return 'voyager';
+      return 'mappls';
     });
   };
 

@@ -72,3 +72,48 @@ export interface CitizenDataQueryFilters {
   sector?: string;
   limit?: number;
 }
+
+// ==========================================
+// 🅿️ SMART PARKING DOMAIN TYPES (PHASE 2D)
+// ==========================================
+
+export type ParkingSlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'DISABLED';
+export type ParkingSlotType = 'STANDARD' | 'EV_CHARGING' | 'ACCESSIBLE' | 'VIP_EMERGENCY';
+
+export interface ParkingSlot {
+  id: string;
+  code: string; // e.g. "A1", "A2", "B4"
+  row: string; // "A", "B", "C", "D"
+  col: number; // 1, 2, 3, 4, 5, 6
+  status: ParkingSlotStatus;
+  type: ParkingSlotType;
+  level: number; // 1 (Ground), 2 (Upper Deck)
+  hourlyRate: number; // Tariff in INR (₹)
+  features?: string[];
+}
+
+export interface ParkingFacility {
+  id: string;
+  name: string;
+  code: string;
+  address: string;
+  distanceKm: number;
+  distanceDisplay: string;
+  coordinates: [number, number];
+  dijkstraNodeId: string; // Linking to Dijkstra routing graph
+  totalSlots: number;
+  availableSlots: number;
+  occupiedSlots: number;
+  reservedSlots: number;
+  disabledSlots: number;
+  occupancyPercent: number;
+  hourlyRateInr: number;
+  operatingHours: string;
+  evChargingAvailable: boolean;
+  evSlotsAvailable: number;
+  accessibleSlotsAvailable: number;
+  levels: number;
+  currentLevel: number;
+  slots: ParkingSlot[];
+}
+

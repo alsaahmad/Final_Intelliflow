@@ -16,7 +16,7 @@ interface MapControlsProps {
   onFitBounds: () => void;
   is3DMode: boolean;
   onToggle3D: () => void;
-  tileTheme: 'positron' | 'voyager' | 'osm';
+  tileTheme: 'voyager' | 'positron' | 'osm' | 'mappls';
   onCycleTileTheme: () => void;
   zoomLevel: number;
 }
@@ -34,14 +34,16 @@ export const MapControls: React.FC<MapControlsProps> = ({
 }) => {
   const getThemeLabel = () => {
     switch (tileTheme) {
-      case 'positron':
-        return 'Light Clean';
       case 'voyager':
         return 'Vibrant Twin';
+      case 'positron':
+        return 'Light Clean';
       case 'osm':
         return 'Standard Map';
+      case 'mappls':
+        return 'Mappls Map';
       default:
-        return 'Light Clean';
+        return 'Vibrant Twin';
     }
   };
 

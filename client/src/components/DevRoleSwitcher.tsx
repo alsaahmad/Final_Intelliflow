@@ -13,12 +13,13 @@ export const DevRoleSwitcher: React.FC = () => {
   if (!isAuthenticated) return null;
 
   const roleAccounts: { id: UserRole; email: string; label: string; desc: string; path: string; dotColor: string }[] = [
-    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'Urban Digital Twin (ICCC)', desc: 'Live spatial map, simulation, prediction', path: '/command-center', dotColor: 'bg-blue-600' },
-    { id: 'TRAFFIC_POLICE', email: 'police@intelliflow.ai', label: 'Traffic Police Console', desc: 'Signal override, AI predictions, tactical flow', path: '/traffic-police', dotColor: 'bg-indigo-600' },
-    { id: 'CITIZEN', email: 'citizen@intelliflow.ai', label: 'Citizen Services Portal', desc: 'Civic reporting, traffic radar, 112 SOS', path: '/citizen', dotColor: 'bg-blue-500' },
-    { id: 'MUNICIPAL_CORP', email: 'municipal@intelliflow.ai', label: 'Municipal Corporation', desc: 'Projects, approvals, closure simulation', path: '/municipal', dotColor: 'bg-teal-600' },
-    { id: 'CITIZEN', email: 'citizen@intelliflow.ai', label: '108 Ambulance Unit (EMS)', desc: 'Green corridor wave, patient vitals stream', path: '/ambulance', dotColor: 'bg-rose-500' },
-    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'Hospital Emergency Desk', desc: 'Trauma bays, ICU bed inventory & ETA', path: '/hospital', dotColor: 'bg-emerald-500' },
+    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'City Operations (ICCC)', desc: 'Consolidated municipal & command center', path: '/city-operations', dotColor: 'bg-blue-600' },
+    { id: 'TRAFFIC_POLICE', email: 'police@intelliflow.ai', label: 'Traffic Police Console', desc: 'Signal override, predictions, tactical flow', path: '/traffic-police', dotColor: 'bg-indigo-600' },
+    { id: 'CITIZEN', email: 'citizen@intelliflow.ai', label: 'Citizen Services Portal', desc: 'Civic reporting, traffic map, 112 SOS', path: '/citizen', dotColor: 'bg-blue-500' },
+    { id: 'MUNICIPAL_CORP', email: 'municipal@intelliflow.ai', label: 'City Operations (Municipal)', desc: 'Infrastructure, grievance triage, closures', path: '/city-operations?tab=complaints', dotColor: 'bg-teal-600' },
+    { id: 'COMMAND_CENTER', email: 'command@intelliflow.ai', label: 'Urban Digital Twin (Direct)', desc: '2D/3D map, What-If simulation HUD', path: '/digital-twin', dotColor: 'bg-purple-600' },
+    { id: 'AMBULANCE_RESPONDER', email: 'citizen@intelliflow.ai', label: '108 Ambulance Unit (EMS)', desc: 'Green wave preemption, vitals stream', path: '/ambulance', dotColor: 'bg-rose-500' },
+    { id: 'HOSPITAL', email: 'command@intelliflow.ai', label: 'Hospital Emergency Desk', desc: 'Trauma bays, ICU bed inventory & ETA', path: '/hospital', dotColor: 'bg-emerald-500' },
   ];
 
   const handleRoleChange = async (targetEmail: string, path: string) => {

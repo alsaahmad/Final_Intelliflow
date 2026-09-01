@@ -9,9 +9,11 @@ import {
   CitizenJunctionSummary,
   CitizenNotification,
   CityMobilityStatus,
+  ParkingFacility,
+  ParkingSlot,
 } from '../../types/citizen';
 
-// Modular Citizen Dashboard Components
+// Modular Citizen Dashboard & Parking Components
 import { CitizenHeader } from '../../components/citizen/CitizenHeader';
 import { CitizenGreeting } from '../../components/citizen/CitizenGreeting';
 import { CitizenQuickActions } from '../../components/citizen/CitizenQuickActions';
@@ -19,6 +21,7 @@ import { CitizenTrafficMap } from '../../components/citizen/CitizenTrafficMap';
 import { CitizenAlertsFeed } from '../../components/citizen/CitizenAlertsFeed';
 import { CitizenBottomNav, CitizenTabType } from '../../components/citizen/CitizenBottomNav';
 import { JunctionDetailModal } from '../../components/citizen/JunctionDetailModal';
+import { CitizenParkingFinder } from '../../components/citizen/parking/CitizenParkingFinder';
 
 // Lucide Icons
 import {
@@ -29,7 +32,6 @@ import {
   PhoneCall,
   Send,
   CheckCircle2,
-  QrCode,
   ShieldAlert,
   Sparkles,
   X,
@@ -42,14 +44,6 @@ export const CitizenPortal: React.FC = () => {
   const {
     complaints,
     addComplaint,
-    garages,
-    activeGarage,
-    setActiveGarage,
-    selectSlot,
-    selectedSlot,
-    activeBooking,
-    confirmParkingBooking,
-    clearActiveBooking,
     nodes,
     calculateDijkstraRoute,
     trigger112Sos,
@@ -84,11 +78,6 @@ export const CitizenPortal: React.FC = () => {
   const [originId, setOriginId] = useState('node-cp');
   const [destId, setDestId] = useState('node-hosp1');
   const [navRoute, setNavRoute] = useState<any | null>(null);
-
-  // Tab B: Parking Booking States
-  const [bookingModalOpen, setBookingModalOpen] = useState(false);
-  const [vehicleNumber, setVehicleNumber] = useState('DL 03 CA 4892');
-  const [durationHours, setDurationHours] = useState(3);
 
   // Tab C: Report Form States
   const [title, setTitle] = useState('');
@@ -180,6 +169,15 @@ export const CitizenPortal: React.FC = () => {
     setNavRoute(route);
   };
 
+  // Direct Dijkstra Route Calculation to Parking Facility
+  const handleParkingDirections = (facility: ParkingFacility, _slot: ParkingSlot) => {
+    const targetNode = facility.dijkstraNodeId || 'node-cp';
+    setDestId(targetNode);
+    const route = calculateDijkstraRoute(originId, targetNode);
+    setNavRoute(route);
+    setActiveTab('NAVIGATION');
+  };
+
   // Submit Citizen Complaint
   const handleComplaintSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,13 +194,6 @@ export const CitizenPortal: React.FC = () => {
     setLocation('');
     setDescription('');
     setTimeout(() => setReportSuccess(null), 5000);
-  };
-
-  // Confirm Parking Booking
-  const handleConfirmBooking = () => {
-    if (!activeGarage || !selectedSlot) return;
-    confirmParkingBooking(activeGarage.id, selectedSlot.id, vehicleNumber, durationHours);
-    setBookingModalOpen(false);
   };
 
   // Trigger 112 SOS
@@ -539,155 +530,12 @@ export const CitizenPortal: React.FC = () => {
           </div>
         )}
 
-        {/* VIEW 3: CINEMA PARKING BOOKING */}
+        {/* VIEW 3: SMART MOVIE-THEATRE PARKING FINDER (PHASE 2D) */}
         {activeTab === 'PARKING' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            <button
-              onClick={() => setActiveTab('DASHBOARD')}
-              className="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Citizen Home</span>
-            </button>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Garage Selector */}
-              <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 space-y-4 shadow-sm">
-                <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-100">
-                  <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                    <ParkingSquare className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-                      Find Parking Facilities
-                    </h2>
-                    <p className="text-xs text-slate-500 font-medium">Live parking availability and hourly tariffs</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                  {garages.map((g) => {
-                    const isSelected = activeGarage?.id === g.id;
-                    return (
-                      <button
-                        key={g.id}
-                        onClick={() => setActiveGarage(g)}
-                        className={`w-full p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                          isSelected
-                            ? 'bg-teal-50/80 border-teal-400 shadow-sm'
-                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-extrabold text-xs text-slate-900">{g.name}</div>
-                          <div className="text-[11px] text-slate-500 font-medium">{g.address}</div>
-                          <div className="text-[10px] text-teal-700 font-bold mt-0.5">
-                            {g.distanceKm} km away • ₹{g.hourlyRateInr}/hour {g.evChargingAvailable ? '• ⚡ EV Ready' : ''}
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0 ml-2">
-                          <span className="font-mono font-black text-sm text-emerald-600">
-                            {g.availableSlots} / {g.totalSlots}
-                          </span>
-                          <span className="text-[9px] text-slate-400 block font-bold">FREE SLOTS</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Right Column: Visual Cinema Seat Grid */}
-              <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
-                {activeGarage ? (
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
-                      <div>
-                        <h3 className="text-sm font-black text-slate-900">{activeGarage.name}</h3>
-                        <p className="text-xs text-slate-500 font-medium">Floor 1 - Live Smart Slot Grid</p>
-                      </div>
-                      <div className="flex items-center space-x-3 text-[10px] font-bold">
-                        <span className="flex items-center space-x-1">
-                          <span className="w-2.5 h-2.5 rounded-md bg-emerald-500" />
-                          <span>Available</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <span className="w-2.5 h-2.5 rounded-md bg-rose-500" />
-                          <span>Occupied</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <span className="w-2.5 h-2.5 rounded-md bg-blue-600" />
-                          <span>Selected</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Floor Plan Sections */}
-                    {(['A', 'B', 'C'] as const).map((sec) => (
-                      <div key={sec} className="space-y-1.5">
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                          Section {sec} (Slots {sec}-01 to {sec}-08)
-                        </span>
-                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
-                          {activeGarage.slots
-                            .filter((s) => s.section === sec)
-                            .map((slot) => {
-                              const isSelected = selectedSlot?.id === slot.id;
-                              const isOccupied = slot.status === 'OCCUPIED';
-                              return (
-                                <button
-                                  key={slot.id}
-                                  disabled={isOccupied}
-                                  onClick={() => selectSlot(activeGarage.id, slot.id)}
-                                  className={`h-11 rounded-xl font-mono text-xs font-bold transition-all flex flex-col items-center justify-center ${
-                                    isOccupied
-                                      ? 'bg-rose-100 text-rose-800 border border-rose-200 cursor-not-allowed opacity-80'
-                                      : isSelected
-                                      ? 'bg-blue-600 text-white shadow-md scale-105 border-2 border-blue-600'
-                                      : 'bg-emerald-50 text-emerald-900 border border-emerald-300 hover:bg-emerald-100'
-                                  }`}
-                                >
-                                  <span>{slot.code}</span>
-                                  <span className="text-[8px] opacity-75">
-                                    {slot.type === 'EV_CHARGING' ? '⚡ EV' : 'P'}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Directions & Booking Actions */}
-                    {selectedSlot && (
-                      <div className="pt-2 flex gap-2">
-                        <button
-                          onClick={() => {
-                            setDestId('node-cp');
-                            setActiveTab('NAVIGATION');
-                          }}
-                          className="flex-1 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs shadow-md shadow-teal-600/20 transition-all flex items-center justify-center space-x-2"
-                        >
-                          <Navigation className="w-4 h-4" />
-                          <span>GET DIRECTIONS TO PARKING</span>
-                        </button>
-                        <button
-                          onClick={() => setBookingModalOpen(true)}
-                          className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center justify-center space-x-1.5"
-                          title="Simulate slot reservation pass"
-                        >
-                          <QrCode className="w-4 h-4" />
-                          <span>Pass (Demo)</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-center text-slate-400 py-10 font-medium">Select a garage to view floor plan.</p>
-                )}
-              </div>
-            </div>
-          </div>
+          <CitizenParkingFinder
+            onBackToDashboard={() => setActiveTab('DASHBOARD')}
+            onGetDirections={handleParkingDirections}
+          />
         )}
 
         {/* VIEW 4: CIVIC REPORTING & COMPLAINTS */}
@@ -957,137 +805,6 @@ export const CitizenPortal: React.FC = () => {
           setActiveTab('NAVIGATION');
         }}
       />
-
-      {/* Booking Confirmation Modal */}
-      {bookingModalOpen && selectedSlot && activeGarage && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-200 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2 text-blue-700">
-                <ParkingSquare className="w-5 h-5" />
-                <h3 className="text-base font-extrabold text-slate-900">Confirm Smart Parking Pass</h3>
-              </div>
-              <button
-                onClick={() => setBookingModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-1">
-              <div className="text-xs font-black text-slate-900">{activeGarage.name}</div>
-              <div className="text-blue-700 font-bold">
-                Selected Slot: <strong className="font-mono text-base">{selectedSlot.code}</strong> ({selectedSlot.type})
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Vehicle Registration Number</label>
-                <input
-                  type="text"
-                  required
-                  value={vehicleNumber}
-                  onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. DL 01 AB 1234"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1 flex justify-between">
-                  <span>Duration</span>
-                  <strong className="text-blue-600 font-mono">{durationHours} Hours</strong>
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="8"
-                  value={durationHours}
-                  onChange={(e) => setDurationHours(parseInt(e.target.value, 10))}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-600">Total Tariff Amount:</span>
-                <strong className="text-base font-black text-slate-900 font-mono">
-                  ₹{activeGarage.hourlyRateInr * durationHours}
-                </strong>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setBookingModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmBooking}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md shadow-blue-600/20 flex items-center justify-center space-x-1.5"
-              >
-                <Check className="w-4 h-4" />
-                <span>CONFIRM & GET PASS</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Generated Digital QR Pass Modal */}
-      {activeBooking && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 space-y-4 text-center animate-in zoom-in-95 duration-200 text-xs">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-
-            <div>
-              <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                PARKING CONFIRMED
-              </span>
-              <h3 className="text-base font-black text-slate-900 mt-1">{activeBooking.passCode}</h3>
-              <p className="text-[11px] text-slate-500 font-medium">{activeBooking.garageName}</p>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 inline-block shadow-inner">
-              <div className="w-36 h-36 bg-white p-2 border border-slate-300 rounded-xl flex items-center justify-center mx-auto shadow-sm">
-                <QrCode className="w-32 h-32 text-slate-900" />
-              </div>
-              <span className="text-[9px] font-mono text-slate-400 block mt-1.5">SCAN AT BOOM BARRIER</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-left space-y-1 text-[11px]">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Reserved Slot:</span>
-                <strong className="text-blue-700 font-mono text-xs">{activeBooking.slotCode}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Vehicle Number:</span>
-                <strong className="text-slate-900 font-mono">{activeBooking.vehicleNumber}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Valid Until:</span>
-                <strong className="text-slate-900">{activeBooking.validUntil}</strong>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200">
-                <span className="text-slate-500">Amount Paid:</span>
-                <strong className="text-emerald-700 font-mono text-xs font-black">₹{activeBooking.totalAmountInr}</strong>
-              </div>
-            </div>
-
-            <button
-              onClick={clearActiveBooking}
-              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-colors"
-            >
-              Done & Save to Wallet
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* CITIZEN PRIVACY & DATA PREFERENCES MODAL (DEMO MODE) */}
       {privacyVaultOpen && (

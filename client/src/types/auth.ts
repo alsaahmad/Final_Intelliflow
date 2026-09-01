@@ -1,6 +1,7 @@
 export type UserRole =
   | 'CITIZEN'
   | 'TRAFFIC_POLICE'
+  | 'CITY_OPERATIONS'
   | 'MUNICIPAL_CORP'
   | 'COMMAND_CENTER'
   | 'MUNICIPAL_CORPORATION'

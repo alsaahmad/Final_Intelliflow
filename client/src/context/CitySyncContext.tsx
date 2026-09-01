@@ -1,4 +1,11 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import {
+  ParkingFacility,
+  ParkingSlot,
+  ParkingSlotStatus,
+  ParkingSlotType,
+} from '../types/citizen';
+import { MOCK_PARKING_FACILITIES } from '../services/citizenService';
 
 export interface CitizenComplaint {
   id: string;
@@ -16,25 +23,8 @@ export interface CitizenComplaint {
   remarks?: string;
 }
 
-export interface ParkingSlot {
-  id: string;
-  code: string; // e.g. "A-01", "B-04"
-  section: 'A' | 'B' | 'C';
-  status: 'AVAILABLE' | 'OCCUPIED' | 'SELECTED';
-  type: 'STANDARD' | 'EV_CHARGING' | 'ACCESSIBLE';
-}
-
-export interface ParkingGarage {
-  id: string;
-  name: string;
-  address: string;
-  distanceKm: number;
-  hourlyRateInr: number;
-  totalSlots: number;
-  availableSlots: number;
-  evChargingAvailable: boolean;
-  slots: ParkingSlot[];
-}
+export type ParkingGarage = ParkingFacility;
+export type { ParkingSlot, ParkingSlotStatus, ParkingSlotType };
 
 export interface ParkingBooking {
   id: string;
@@ -167,61 +157,7 @@ const INITIAL_COMPLAINTS: CitizenComplaint[] = [
   },
 ];
 
-const generateSlots = (garagePrefix: string): ParkingSlot[] => {
-  const sections: ('A' | 'B' | 'C')[] = ['A', 'B', 'C'];
-  const slots: ParkingSlot[] = [];
-  sections.forEach((sec) => {
-    for (let i = 1; i <= 8; i++) {
-      const numStr = i < 10 ? `0${i}` : `${i}`;
-      // Seed some occupied slots for realism
-      const isOccupied = (i * (sec === 'A' ? 3 : sec === 'B' ? 5 : 7)) % 3 === 0;
-      slots.push({
-        id: `slot-${garagePrefix}-${sec}-${numStr}`,
-        code: `${sec}-${numStr}`,
-        section: sec,
-        status: isOccupied ? 'OCCUPIED' : 'AVAILABLE',
-        type: i === 1 ? 'EV_CHARGING' : i === 8 ? 'ACCESSIBLE' : 'STANDARD',
-      });
-    }
-  });
-  return slots;
-};
-
-const INITIAL_GARAGES: ParkingGarage[] = [
-  {
-    id: 'gar-01',
-    name: 'Connaught Central Multi-Level Car Park',
-    address: 'Block B, Inner Circle, Connaught Center',
-    distanceKm: 0.8,
-    hourlyRateInr: 30,
-    totalSlots: 24,
-    availableSlots: 15,
-    evChargingAvailable: true,
-    slots: generateSlots('CP'),
-  },
-  {
-    id: 'gar-02',
-    name: 'Metro Tech Hub Underground Garage',
-    address: 'Gate 3, Cyber Tech Station Complex',
-    distanceKm: 1.4,
-    hourlyRateInr: 40,
-    totalSlots: 24,
-    availableSlots: 11,
-    evChargingAvailable: true,
-    slots: generateSlots('MTH'),
-  },
-  {
-    id: 'gar-03',
-    name: 'City General Trauma Plaza Parking Deck',
-    address: 'Hospital Access Boulevard, Medical Zone',
-    distanceKm: 2.1,
-    hourlyRateInr: 20,
-    totalSlots: 24,
-    availableSlots: 18,
-    evChargingAvailable: false,
-    slots: generateSlots('CGT'),
-  },
-];
+const INITIAL_GARAGES: ParkingGarage[] = MOCK_PARKING_FACILITIES;
 
 const DIJKSTRA_NODES: DijkstraNode[] = [
   { id: 'node-cp', name: 'Central Connaught Plaza (J14)', coordinates: [28.6139, 77.2090], category: 'CENTRAL_PLAZA' },
@@ -299,29 +235,18 @@ export const CitySyncProvider: React.FC<{ children: ReactNode }> = ({ children }
     );
   }, []);
 
-  // Select Parking Slot
-  const selectSlot = useCallback((garageId: string, slotId: string) => {
-    setGarages((prev) =>
-      prev.map((g) => {
-        if (g.id !== garageId) return g;
-        let chosenSlot: ParkingSlot | null = null;
-        const updatedSlots = g.slots.map((s) => {
-          if (s.id === slotId) {
-            if (s.status === 'OCCUPIED') return s;
-            const nextStatus = s.status === 'SELECTED' ? 'AVAILABLE' : 'SELECTED';
-            const updated = { ...s, status: nextStatus } as ParkingSlot;
-            if (nextStatus === 'SELECTED') chosenSlot = updated;
-            return updated;
-          }
-          // unselect other selected slots
-          if (s.status === 'SELECTED') return { ...s, status: 'AVAILABLE' } as ParkingSlot;
-          return s;
-        });
-        setSelectedSlot(chosenSlot);
-        return { ...g, slots: updatedSlots };
-      })
-    );
-  }, []);
+  // Select Parking Slot (Pure UI state selection - does not mutate underlying slot status)
+  const selectSlot = useCallback(
+    (garageId: string, slotId: string) => {
+      const garage = garages.find((g) => g.id === garageId);
+      if (!garage) return;
+      const targetSlot = garage.slots.find((s) => s.id === slotId);
+      if (!targetSlot || targetSlot.status !== 'AVAILABLE') return;
+
+      setSelectedSlot((prev) => (prev?.id === slotId ? null : targetSlot));
+    },
+    [garages]
+  );
 
   // Confirm Parking Booking & Generate QR Pass
   const confirmParkingBooking = useCallback(

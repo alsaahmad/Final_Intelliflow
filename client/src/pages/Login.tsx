@@ -10,7 +10,6 @@ import {
   ArrowRight,
   Users,
   Car,
-  Building2,
   Radio,
   CheckCircle2,
   AlertCircle,
@@ -38,23 +37,15 @@ const ROLES: RoleOption[] = [
   {
     id: 'TRAFFIC_POLICE',
     label: 'Traffic Police',
-    subtitle: 'Signals & tactical twin',
+    subtitle: 'Signals & tactical flow',
     icon: <Car className="w-5 h-5" />,
     activeColor: 'border-indigo-500 bg-indigo-50/70 text-indigo-900',
     defaultEmail: 'police@intelliflow.ai',
   },
   {
-    id: 'MUNICIPAL_CORP',
-    label: 'Municipal Corp',
-    subtitle: 'Projects & closures',
-    icon: <Building2 className="w-5 h-5" />,
-    activeColor: 'border-teal-500 bg-teal-50/70 text-teal-900',
-    defaultEmail: 'municipal@intelliflow.ai',
-  },
-  {
     id: 'COMMAND_CENTER',
-    label: 'Command Center',
-    subtitle: 'Citywide ICCC & triage',
+    label: 'City Operations',
+    subtitle: 'Municipal & ICCC command',
     icon: <Radio className="w-5 h-5" />,
     activeColor: 'border-amber-500 bg-amber-50/70 text-amber-900',
     defaultEmail: 'command@intelliflow.ai',
@@ -186,7 +177,7 @@ export const Login: React.FC = () => {
               <span className="text-[10px] text-slate-400 font-medium">1 person can have multiple role profiles</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {ROLES.map((r) => {
                 const isSelected = selectedRole === r.id;
                 return (

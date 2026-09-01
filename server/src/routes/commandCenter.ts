@@ -5,7 +5,16 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 export const commandCenterRouter = Router();
 
 commandCenterRouter.use(authenticateToken);
-commandCenterRouter.use(authorizeRoles(['COMMAND_CENTER']));
+commandCenterRouter.use(
+  authorizeRoles([
+    'COMMAND_CENTER',
+    'MUNICIPAL_CORP',
+    'MUNICIPAL_CORPORATION',
+    'MUNICIPAL_ENGINEER',
+    'CITY_OPERATIONS',
+    'ADMIN',
+  ])
+);
 
 /**
  * GET /api/command/overview

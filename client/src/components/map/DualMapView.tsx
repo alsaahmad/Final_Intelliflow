@@ -67,10 +67,13 @@ export const DualMapView: React.FC<DualMapViewProps> = ({
         attributionControl: false,
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
         subdomains: 'abcd',
-      }).addTo(map);
+        attribution: '© OpenStreetMap contributors, © CARTO',
+      });
+
+      tileLayer.addTo(map);
 
       const markersGroup = L.layerGroup().addTo(map);
       const polylinesGroup = L.layerGroup().addTo(map);
@@ -78,6 +81,22 @@ export const DualMapView: React.FC<DualMapViewProps> = ({
       leafletMapRef.current = map;
       leafletMarkersGroupRef.current = markersGroup;
       leafletPolylinesGroupRef.current = polylinesGroup;
+
+      // Ensure proper sizing immediately and on container resize
+      setTimeout(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      }, 200);
+
+      const resizeObserver = new ResizeObserver(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      });
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
 
       map.on('zoomend', () => {
         setCurrentZoom(map.getZoom());
