@@ -25,6 +25,7 @@ export interface TrafficAlert {
   alternateRouteSuggested?: string;
   verifiedAdvisory: boolean;
   affectedLanes?: string;
+  dataSource?: string;
 }
 
 export interface CitizenJunctionSummary {
@@ -45,6 +46,7 @@ export interface CitizenJunctionSummary {
   activeAdvisory?: string;
   prediction?: TrafficPrediction;
   lastUpdated: string; // ISO 8601 string
+  dataSource?: string;
 }
 
 export interface CitizenNotification {
@@ -65,6 +67,7 @@ export interface CityMobilityStatus {
   activeSignalsCount: number;
   lastUpdated: string; // ISO 8601 string or dynamic time
   currentLocationName: string;
+  dataSource?: string;
 }
 
 export interface CitizenDataQueryFilters {
@@ -115,5 +118,7 @@ export interface ParkingFacility {
   levels: number;
   currentLevel: number;
   slots: ParkingSlot[];
+  dataSource?: string;
 }
+
 

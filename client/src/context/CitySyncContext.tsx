@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import {
   ParkingFacility,
   ParkingSlot,
@@ -6,6 +6,9 @@ import {
   ParkingSlotType,
 } from '../types/citizen';
 import { MOCK_PARKING_FACILITIES } from '../services/citizenService';
+import { complaintsApiClient } from '../api/complaintsApiClient';
+import { parkingApiClient } from '../api/parkingApiClient';
+
 
 export interface CitizenComplaint {
   id: string;
@@ -193,13 +196,39 @@ export const CitySyncProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [activeBooking, setActiveBooking] = useState<ParkingBooking | null>(null);
   const [sosDispatches, setSosDispatches] = useState<SosDispatchEvent[]>([]);
 
+  // Async sync on mount with FastAPI
+  useEffect(() => {
+    const syncData = async () => {
+      try {
+        const fetchedComplaints = await complaintsApiClient.getComplaints();
+        if (fetchedComplaints && fetchedComplaints.length > 0) {
+          setComplaints(fetchedComplaints);
+        }
+      } catch (err) {
+        console.info('FastAPI complaints backend unreachable, using fallback datasets.', err);
+      }
+
+      try {
+        const fetchedGarages = await parkingApiClient.getNearbyParkingFacilities();
+        if (fetchedGarages && fetchedGarages.length > 0) {
+          setGarages(fetchedGarages);
+          setActiveGarage(fetchedGarages[0]);
+        }
+      } catch (err) {
+        console.info('FastAPI parking backend unreachable, using fallback datasets.', err);
+      }
+    };
+    syncData();
+  }, []);
+
   // Add Complaint
   const addComplaint = useCallback(
     (complaintData: Omit<CitizenComplaint, 'id' | 'code' | 'timestamp' | 'status' | 'assignedDepartment' | 'estimatedResolutionHours'>) => {
       const codeNum = Math.floor(9000 + Math.random() * 999);
+      const tempId = `cmp-${Date.now()}`;
       const newComplaint: CitizenComplaint = {
         ...complaintData,
-        id: `cmp-${Date.now()}`,
+        id: tempId,
         code: `CIVIC-${codeNum}`,
         timestamp: 'Just now',
         status: 'PENDING',
@@ -214,12 +243,29 @@ export const CitySyncProvider: React.FC<{ children: ReactNode }> = ({ children }
         estimatedResolutionHours: complaintData.urgency === 'EMERGENCY' ? 4 : complaintData.urgency === 'HIGH' ? 12 : 24,
       };
       setComplaints((prev) => [newComplaint, ...prev]);
+
+      // Async backend persistence
+      complaintsApiClient
+        .createComplaint({
+          title: complaintData.title,
+          category: complaintData.category,
+          location: complaintData.location,
+          urgency: complaintData.urgency,
+          description: complaintData.description,
+        })
+        .then((serverRecord) => {
+          setComplaints((prev) => prev.map((c) => (c.id === tempId ? serverRecord : c)));
+        })
+        .catch((err) => {
+          console.warn('Could not persist complaint to FastAPI backend:', err);
+        });
+
       return newComplaint;
     },
     []
   );
 
-  // Update Complaint Status (from Municipal Portal)
+  // Update Complaint Status (from Municipal / Ops Portal)
   const updateComplaintStatus = useCallback((id: string, status: 'PENDING' | 'IN_PROGRESS' | 'RESOLVED', remarks?: string) => {
     setComplaints((prev) =>
       prev.map((c) => {
@@ -233,7 +279,13 @@ export const CitySyncProvider: React.FC<{ children: ReactNode }> = ({ children }
         return c;
       })
     );
+
+    // Async backend status update
+    complaintsApiClient.updateComplaintStatus(id, status, remarks).catch((err) => {
+      console.warn('Could not sync status update to FastAPI backend:', err);
+    });
   }, []);
+
 
   // Select Parking Slot (Pure UI state selection - does not mutate underlying slot status)
   const selectSlot = useCallback(

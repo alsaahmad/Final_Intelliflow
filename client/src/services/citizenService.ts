@@ -9,6 +9,9 @@ import {
   ParkingSlotStatus,
   ParkingSlotType,
 } from '../types/citizen';
+import { trafficApiClient } from '../api/trafficApiClient';
+import { parkingApiClient } from '../api/parkingApiClient';
+
 
 /**
  * Format ISO timestamp into a human-readable relative time string.
@@ -35,7 +38,7 @@ export function formatTimeAgo(isoString: string): string {
 const nowTime = Date.now();
 const minutesAgo = (mins: number) => new Date(nowTime - mins * 60 * 1000).toISOString();
 
-// Centralized Seed Junctions
+// Centralized Seed Junctions (Explicitly tagged as DEMO_OFFLINE_FALLBACK)
 export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
   {
     id: 'j-14',
@@ -59,6 +62,7 @@ export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
       confidenceScore: 0.88,
     },
     lastUpdated: minutesAgo(1),
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'j-15',
@@ -81,6 +85,7 @@ export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
       confidenceScore: 0.91,
     },
     lastUpdated: minutesAgo(2),
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'j-16',
@@ -104,6 +109,7 @@ export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
       confidenceScore: 0.95,
     },
     lastUpdated: minutesAgo(1),
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'j-17',
@@ -126,6 +132,7 @@ export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
       confidenceScore: 0.86,
     },
     lastUpdated: minutesAgo(4),
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'j-18',
@@ -148,6 +155,7 @@ export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
       confidenceScore: 0.89,
     },
     lastUpdated: minutesAgo(3),
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'j-19',
@@ -171,6 +179,7 @@ export const MOCK_JUNCTIONS: CitizenJunctionSummary[] = [
       confidenceScore: 0.84,
     },
     lastUpdated: minutesAgo(2),
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
 ];
 
@@ -180,7 +189,7 @@ export const MOCK_TRAFFIC_ALERTS: TrafficAlert[] = [
     id: 'alt-01',
     code: 'ALT-401',
     incidentId: 'inc-9812',
-    junctionId: 'j-14', // Links directly to Central Connaught Plaza Hub (J14)
+    junctionId: 'j-14',
     title: 'Multi-Vehicle Obstruction on Central Boulevard',
     severity: 'HIGH',
     category: 'ACCIDENT',
@@ -192,12 +201,13 @@ export const MOCK_TRAFFIC_ALERTS: TrafficAlert[] = [
     alternateRouteSuggested: 'Outer Ring Road East Connector',
     verifiedAdvisory: true,
     affectedLanes: 'Northbound Lane 2',
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'alt-02',
     code: 'ALT-402',
     incidentId: 'inc-9813',
-    junctionId: 'j-16', // Links directly to Hospital Trauma Gateway (J16)
+    junctionId: 'j-16',
     title: 'Active Green Corridor for Emergency Response',
     severity: 'CRITICAL',
     category: 'GREEN_CORRIDOR',
@@ -207,12 +217,13 @@ export const MOCK_TRAFFIC_ALERTS: TrafficAlert[] = [
     timestamp: minutesAgo(3),
     estimatedDelayMinutes: 0,
     verifiedAdvisory: true,
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'alt-03',
     code: 'ALT-403',
     incidentId: 'inc-9814',
-    junctionId: 'j-19', // Links directly to Outer Ring South Underpass (J19)
+    junctionId: 'j-19',
     title: 'Monsoon Waterlogging Drainage Works',
     severity: 'MEDIUM',
     category: 'WATERLOGGING',
@@ -224,12 +235,13 @@ export const MOCK_TRAFFIC_ALERTS: TrafficAlert[] = [
     alternateRouteSuggested: 'South-West Connector Link',
     verifiedAdvisory: true,
     affectedLanes: 'Left Service Lane',
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
   {
     id: 'alt-04',
     code: 'ALT-404',
     incidentId: 'inc-9815',
-    junctionId: 'j-17', // Links directly to Tech Park North Ring (J17)
+    junctionId: 'j-17',
     title: 'Peak Tech Park Inflow Bottleneck',
     severity: 'LOW',
     category: 'CONGESTION',
@@ -239,6 +251,7 @@ export const MOCK_TRAFFIC_ALERTS: TrafficAlert[] = [
     timestamp: minutesAgo(40),
     estimatedDelayMinutes: 5,
     verifiedAdvisory: false,
+    dataSource: 'DEMO_OFFLINE_FALLBACK',
   },
 ];
 
@@ -290,73 +303,79 @@ export const MOCK_CITY_STATUS: CityMobilityStatus = {
   activeSignalsCount: 142,
   lastUpdated: new Date().toISOString(),
   currentLocationName: 'Connaught Place Sector 4, New Delhi',
+  dataSource: 'DEMO_OFFLINE_FALLBACK',
 };
 
 /**
  * Service Layer: Provides data to the Citizen portal.
- * Designed to easily switch to FastAPI endpoint calls in production.
+ * Queries FastAPI backend on port 8000 with seamless fallback to offline demo data if server is unreachable.
  */
 export const citizenService = {
   /**
    * Fetch active traffic alerts with optional severity filtering
    */
   async getTrafficAlerts(filters?: CitizenDataQueryFilters): Promise<TrafficAlert[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        let results = [...MOCK_TRAFFIC_ALERTS];
-        if (filters?.severity && filters.severity !== 'ALL') {
-          results = results.filter((a) => a.severity === filters.severity);
-        }
-        if (filters?.limit) {
-          results = results.slice(0, filters.limit);
-        }
-        resolve(results);
-      }, 150);
-    });
+    try {
+      return await trafficApiClient.getTrafficAlerts(filters?.severity);
+    } catch {
+      // Fallback if FastAPI server is unavailable
+      let results = MOCK_TRAFFIC_ALERTS.map((a) => ({ ...a, dataSource: 'DEMO_OFFLINE_FALLBACK' }));
+      if (filters?.severity && filters.severity !== 'ALL') {
+        results = results.filter((a) => a.severity === filters.severity);
+      }
+      if (filters?.limit) {
+        results = results.slice(0, filters.limit);
+      }
+      return results;
+    }
   },
 
   /**
    * Fetch nearby traffic junctions and live status
    */
   async getNearbyJunctions(filters?: CitizenDataQueryFilters): Promise<CitizenJunctionSummary[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        let results = [...MOCK_JUNCTIONS];
-        if (filters?.sector) {
-          results = results.filter((j) => j.sector.toLowerCase().includes(filters.sector!.toLowerCase()));
-        }
-        if (filters?.limit) {
-          results = results.slice(0, filters.limit);
-        }
-        resolve(results);
-      }, 180);
-    });
+    try {
+      return await trafficApiClient.getJunctions(filters?.sector, filters?.limit);
+    } catch {
+      // Fallback if FastAPI server is unavailable
+      let results = MOCK_JUNCTIONS.map((j) => ({ ...j, dataSource: 'DEMO_OFFLINE_FALLBACK' }));
+      if (filters?.sector) {
+        results = results.filter((j) => j.sector.toLowerCase().includes(filters.sector!.toLowerCase()));
+      }
+      if (filters?.limit) {
+        results = results.slice(0, filters.limit);
+      }
+      return results;
+    }
   },
 
   /**
    * Lookup a specific junction by its unique ID
    */
   async getJunctionById(id: string): Promise<CitizenJunctionSummary | null> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const found = MOCK_JUNCTIONS.find((j) => j.id === id) || null;
-        resolve(found);
-      }, 80);
-    });
+    try {
+      return await trafficApiClient.getJunctionById(id);
+    } catch {
+      // Fallback if FastAPI server is unavailable
+      const found = MOCK_JUNCTIONS.find((j) => j.id === id || j.code === id) || null;
+      return found ? { ...found, dataSource: 'DEMO_OFFLINE_FALLBACK' } : null;
+    }
   },
 
   /**
    * Fetch citywide mobility index and telemetry
    */
   async getCityMobilityStatus(): Promise<CityMobilityStatus> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          ...MOCK_CITY_STATUS,
-          lastUpdated: new Date().toISOString(),
-        });
-      }, 100);
-    });
+    try {
+      return await trafficApiClient.getMobilityStatus();
+    } catch {
+      // Fallback if FastAPI server is unavailable
+      return {
+        ...MOCK_CITY_STATUS,
+        lastUpdated: new Date().toISOString(),
+        dataSource: 'DEMO_OFFLINE_FALLBACK',
+      };
+    }
   },
 
   /**
@@ -637,47 +656,44 @@ export const citizenParkingService = {
    * Fetch nearby parking facilities with optional criteria
    */
   async getNearbyParkingFacilities(filters?: { evOnly?: boolean; maxDistanceKm?: number }): Promise<ParkingFacility[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        let results = [...MOCK_PARKING_FACILITIES];
-        if (filters?.evOnly) {
-          results = results.filter((f) => f.evChargingAvailable && f.evSlotsAvailable > 0);
-        }
-        if (filters?.maxDistanceKm) {
-          results = results.filter((f) => f.distanceKm <= filters.maxDistanceKm!);
-        }
-        resolve(results);
-      }, 150);
-    });
+    try {
+      return await parkingApiClient.getNearbyParkingFacilities(filters);
+    } catch {
+      let results = MOCK_PARKING_FACILITIES.map((f) => ({ ...f, dataSource: 'DEMO_OFFLINE_FALLBACK' }));
+      if (filters?.evOnly) {
+        results = results.filter((f) => f.evChargingAvailable && f.evSlotsAvailable > 0);
+      }
+      if (filters?.maxDistanceKm) {
+        results = results.filter((f) => f.distanceKm <= filters.maxDistanceKm!);
+      }
+      return results;
+    }
   },
 
   /**
    * Lookup a parking facility by its unique ID
    */
   async getParkingFacilityById(facilityId: string): Promise<ParkingFacility | null> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const found = MOCK_PARKING_FACILITIES.find((f) => f.id === facilityId) || null;
-        resolve(found);
-      }, 80);
-    });
+    try {
+      return await parkingApiClient.getParkingFacilityById(facilityId);
+    } catch {
+      const found = MOCK_PARKING_FACILITIES.find((f) => f.id === facilityId) || null;
+      return found ? { ...found, dataSource: 'DEMO_OFFLINE_FALLBACK' } : null;
+    }
   },
 
   /**
    * Fetch slot layout for a parking facility and level
    */
   async getFacilitySlots(facilityId: string, level = 1): Promise<ParkingSlot[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const facility = MOCK_PARKING_FACILITIES.find((f) => f.id === facilityId);
-        if (!facility) {
-          resolve([]);
-          return;
-        }
-        const filtered = facility.slots.filter((s) => s.level === level);
-        resolve(filtered);
-      }, 100);
-    });
+    try {
+      return await parkingApiClient.getFacilitySlots(facilityId, level);
+    } catch {
+      const facility = MOCK_PARKING_FACILITIES.find((f) => f.id === facilityId);
+      if (!facility) return [];
+      return facility.slots.filter((s) => s.level === level);
+    }
   },
 };
+
 
