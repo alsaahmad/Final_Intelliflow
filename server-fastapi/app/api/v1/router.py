@@ -9,6 +9,8 @@ from app.api.v1.endpoints import (
     admin,
     police,
     websocket,
+    ai,
+    translate,
 )
 
 api_v1_router = APIRouter()
@@ -41,3 +43,9 @@ api_v1_router.include_router(police.router, prefix="/traffic-police", tags=["Tra
 
 # Include real-time WebSocket endpoints
 api_v1_router.include_router(websocket.router, tags=["Real-Time WebSockets"])
+
+# Include Phase 4A AI Intelligence endpoints
+api_v1_router.include_router(ai.router, prefix="/ai", tags=["AI Intelligence Domain (Phase 4A)"])
+
+# Include Phase 4C Multilingual Translation endpoint
+api_v1_router.include_router(translate.router, tags=["Multilingual Translation Domain (Phase 4C)"])

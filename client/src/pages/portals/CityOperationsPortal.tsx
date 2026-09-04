@@ -5,6 +5,12 @@ import { useCitySync } from '../../context/CitySyncContext';
 import api from '../../api/authClient';
 import { infrastructureApiClient } from '../../api/infrastructureApiClient';
 import { emergencyApiClient } from '../../api/emergencyApiClient';
+import { aiApiClient, JunctionPredictionDetailDTO } from '../../api/aiApiClient';
+import { TrafficPredictionCard } from '../../components/ai/TrafficPredictionCard';
+import { AnalyticalExplanationCard } from '../../components/ai/AnalyticalExplanationCard';
+import { WhatIfSimulationCard } from '../../components/ai/WhatIfSimulationCard';
+import { AIRecommendationCard } from '../../components/ai/AIRecommendationCard';
+import { useTranslation } from '../../i18n/useTranslation';
 
 import { DualMapView, MapMarker } from '../../components/map/DualMapView';
 import {
@@ -47,6 +53,7 @@ export type CityOpsTab =
 
 export const CityOperationsPortal: React.FC = () => {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { complaints, updateComplaintStatus } = useCitySync();
 
@@ -184,16 +191,20 @@ export const CityOperationsPortal: React.FC = () => {
   // Filter for Map & Incidents
   const [mapLayerFilter, setMapLayerFilter] = useState<'ALL' | 'JUNCTIONS' | 'INCIDENTS' | 'HOSPITALS'>('ALL');
 
+  // AI Intelligence state (Phase 4A)
+  const [aiDetail, setAiDetail] = useState<JunctionPredictionDetailDTO | null>(null);
+
   // Fetch initial telemetry data
   const fetchData = async () => {
     try {
-      const [overRes, emergRes, logsRes, munRes, fastInfraRes, fastEmergRes] = await Promise.allSettled([
+      const [overRes, emergRes, logsRes, munRes, fastInfraRes, fastEmergRes, aiRes] = await Promise.allSettled([
         api.get('/api/command/overview'),
         api.get('/api/command/emergency-monitoring'),
         api.get('/api/command/logs'),
         api.get('/api/municipal/overview'),
         infrastructureApiClient.getOverview(),
         emergencyApiClient.getMonitoring(),
+        aiApiClient.getJunctionPredictionDetail('J14', 15),
       ]);
 
       if (overRes.status === 'fulfilled') setOverview(overRes.value.data);
@@ -214,10 +225,15 @@ export const CityOperationsPortal: React.FC = () => {
       if (fastEmergRes.status === 'fulfilled' && fastEmergRes.value?.success) {
         setEmergencyData(fastEmergRes.value);
       }
+
+      if (aiRes.status === 'fulfilled') {
+        setAiDetail(aiRes.value);
+      }
     } catch (err) {
       console.error('Failed to load City Operations data:', err);
     }
   };
+
 
   useEffect(() => {
     fetchData();
@@ -369,15 +385,15 @@ export const CityOperationsPortal: React.FC = () => {
   });
 
   const navTabs: { id: CityOpsTab; label: string; icon: any; count?: number }[] = [
-    { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'map', label: 'Live City Map', icon: MapIcon },
-    { id: 'traffic', label: 'Traffic & Incidents', icon: Radio },
-    { id: 'complaints', label: 'Citizen Complaints', icon: CheckSquare, count: complaints.filter((c) => c.status === 'PENDING').length },
-    { id: 'infrastructure', label: 'Infrastructure', icon: Building2, count: projects.length },
-    { id: 'closures', label: 'Road Closures', icon: AlertTriangle },
-    { id: 'digital-twin', label: 'Digital Twin', icon: Layers },
-    { id: 'simulation', label: 'Simulation', icon: Cpu },
-    { id: 'analytics', label: 'Analytics / Reports', icon: FileText },
+    { id: 'overview', label: t('nav.overview', 'Overview'), icon: Activity },
+    { id: 'map', label: t('nav.liveCityMap', 'Live City Map'), icon: MapIcon },
+    { id: 'traffic', label: t('nav.trafficIncidents', 'Traffic & Incidents'), icon: Radio },
+    { id: 'complaints', label: t('nav.citizenComplaints', 'Citizen Complaints'), icon: CheckSquare, count: complaints.filter((c) => c.status === 'PENDING').length },
+    { id: 'infrastructure', label: t('nav.infrastructure', 'Infrastructure'), icon: Building2, count: projects.length },
+    { id: 'closures', label: t('nav.roadClosures', 'Road Closures'), icon: AlertTriangle },
+    { id: 'digital-twin', label: t('nav.digitalTwin', 'Digital Twin'), icon: Layers },
+    { id: 'simulation', label: t('nav.simulation', 'Simulation'), icon: Cpu },
+    { id: 'analytics', label: t('nav.analytics', 'Analytics / Reports'), icon: FileText },
   ];
 
   return (
@@ -541,13 +557,13 @@ export const CityOperationsPortal: React.FC = () => {
               <div className="space-y-1.5">
                 <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-extrabold">
                   <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                  <span>CONSOLIDATED CITY OPERATIONS & GOVERNANCE</span>
+                  <span>{t('cityOps.sectorLabel', 'CONSOLIDATED CITY OPERATIONS & GOVERNANCE')}</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  Metropolitan Command & Civic Overview
+                  {t('cityOps.portalTitle', 'Metropolitan Command & Civic Overview')}
                 </h1>
                 <p className="text-xs text-slate-500 font-medium">
-                  Synchronized operational matrix for Traffic Enforcement, Infrastructure Works, and Emergency Priority Waves.
+                  {t('cityOps.portalSubtitle', 'Synchronized operational matrix for Traffic Enforcement, Infrastructure Works, and Emergency Priority Waves.')}
                 </p>
               </div>
 
@@ -557,7 +573,7 @@ export const CityOperationsPortal: React.FC = () => {
                   className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 transition-all flex items-center space-x-2"
                 >
                   <Zap className="w-4 h-4" />
-                  <span>Simulate Green Wave</span>
+                  <span>{t('cityOps.simulateGreenWave', 'Simulate Green Wave')}</span>
                 </button>
 
                 <button
@@ -569,6 +585,25 @@ export const CityOperationsPortal: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Phase 4A & 4B AI Intelligence Layer Overview */}
+            {aiDetail && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 px-1">
+                  <Sparkles className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Citywide AI Intelligence Layer (Predict • Explain • What-If • Recommend • Simulated Act)
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <TrafficPredictionCard prediction={aiDetail.prediction} />
+                  <AnalyticalExplanationCard factors={aiDetail.analytical_factor_contributions} />
+                  <WhatIfSimulationCard junctionCode={aiDetail.prediction.junction_code} initialGreenTimeSec={32} />
+                  <AIRecommendationCard junctionCode={aiDetail.prediction.junction_code} />
+                </div>
+              </div>
+            )}
+
 
             {/* 4 Core Summary Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

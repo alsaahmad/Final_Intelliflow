@@ -20,7 +20,15 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
   const [fontSize, setFontSize] = useState<FontSizeOption>('base');
   const [highContrast, setHighContrast] = useState(false);
   const [screenReaderActive, setScreenReaderActive] = useState(false);
-  const [language, setLanguage] = useState<LanguageCode>('en');
+  const [language, setLanguageState] = useState<LanguageCode>(() => {
+    const saved = localStorage.getItem('intelliflow_language');
+    return (saved as LanguageCode) || 'en';
+  });
+
+  const setLanguage = (lang: LanguageCode) => {
+    setLanguageState(lang);
+    localStorage.setItem('intelliflow_language', lang);
+  };
 
   // Apply high-contrast or font size to document body
   useEffect(() => {

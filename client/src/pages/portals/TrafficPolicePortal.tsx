@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useWebSocket } from '../../context/WebSocketContext';
+import { useTranslation } from '../../i18n/useTranslation';
 import { trafficPoliceApiClient, PoliceOverviewDTO } from '../../api/trafficPoliceApiClient';
+import { aiApiClient, JunctionPredictionDetailDTO } from '../../api/aiApiClient';
+import { TrafficPredictionCard } from '../../components/ai/TrafficPredictionCard';
+import { AnalyticalExplanationCard } from '../../components/ai/AnalyticalExplanationCard';
+import { WhatIfSimulationCard } from '../../components/ai/WhatIfSimulationCard';
+import { AIRecommendationCard } from '../../components/ai/AIRecommendationCard';
 import {
   Car,
   ShieldCheck,
@@ -21,6 +27,7 @@ import {
 export const TrafficPolicePortal: React.FC = () => {
   const { user, logout } = useAuth();
   const { connectionStatus, lastEvent } = useWebSocket();
+  const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<'map' | 'predictions' | 'whatif'>('map');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -37,6 +44,9 @@ export const TrafficPolicePortal: React.FC = () => {
   // Manual Signal Override
   const [overrideLoading, setOverrideLoading] = useState(false);
 
+  // AI Intelligence state (Phase 4A)
+  const [aiDetail, setAiDetail] = useState<JunctionPredictionDetailDTO | null>(null);
+
   const fetchPoliceData = async () => {
     try {
       const policeOverview = await trafficPoliceApiClient.getPoliceOverview();
@@ -46,6 +56,9 @@ export const TrafficPolicePortal: React.FC = () => {
         { junctionCode: 'J19', horizonMinutes: 15, predictedCongestion: 74, trend: 'WORSENING' },
         { junctionCode: 'J15', horizonMinutes: 15, predictedCongestion: 50, trend: 'STABLE' },
       ]);
+
+      const aiData = await aiApiClient.getJunctionPredictionDetail('J14', 15);
+      setAiDetail(aiData);
     } catch (err) {
       console.error('Failed to load traffic police data:', err);
     }
@@ -205,7 +218,7 @@ export const TrafficPolicePortal: React.FC = () => {
               }`}
             >
               <MapIcon className="w-4 h-4" />
-              <span>Command Map</span>
+              <span>{t('nav.commandMap', 'Command Map')}</span>
             </button>
 
             <button
@@ -220,7 +233,7 @@ export const TrafficPolicePortal: React.FC = () => {
               }`}
             >
               <TrendingUp className="w-4 h-4" />
-              <span>Predictions</span>
+              <span>{t('nav.predictions', 'Predictions')}</span>
             </button>
 
             <button
@@ -235,7 +248,7 @@ export const TrafficPolicePortal: React.FC = () => {
               }`}
             >
               <Cpu className="w-4 h-4" />
-              <span>What-If Sim</span>
+              <span>{t('nav.whatifSim', 'What-If Sim')}</span>
             </button>
           </nav>
         </div>
@@ -247,7 +260,7 @@ export const TrafficPolicePortal: React.FC = () => {
             className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-bold text-xs transition-all"
           >
             <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <span>{t('common.logout', 'Logout')}</span>
           </button>
         </div>
       </aside>
@@ -259,13 +272,13 @@ export const TrafficPolicePortal: React.FC = () => {
           <div className="space-y-1.5">
             <div className="inline-flex items-center space-x-2 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
               <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-              <span>SECTOR A TRAFFIC ENFORCEMENT</span>
+              <span>{t('police.sectorLabel', 'SECTOR A TRAFFIC ENFORCEMENT')}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Traffic Police Tactical Command
+              {t('police.portalTitle', 'Traffic Police Tactical Command')}
             </h1>
             <p className="text-xs text-slate-500">
-              Live junction telemetry, AI congestion forecasting, and real-time signal timing override.
+              {t('police.portalSubtitle', 'Live junction telemetry, AI congestion forecasting, and real-time signal timing override.')}
             </p>
           </div>
 
@@ -283,6 +296,25 @@ export const TrafficPolicePortal: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Phase 4A & 4B AI Intelligence Layer Section */}
+        {aiDetail && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 px-1">
+              <Sparkles className="w-5 h-5 text-indigo-500" />
+              <h2 className="text-lg font-extrabold text-slate-900">
+                IntelliFlow AI Intelligence Layer (Predict • Explain • What-If • Recommend • Simulated Act)
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <TrafficPredictionCard prediction={aiDetail.prediction} />
+              <AnalyticalExplanationCard factors={aiDetail.analytical_factor_contributions} />
+              <WhatIfSimulationCard junctionCode={aiDetail.prediction.junction_code} initialGreenTimeSec={32} />
+              <AIRecommendationCard junctionCode={aiDetail.prediction.junction_code} />
+            </div>
+          </div>
+        )}
+
 
         {/* 1. Large "Live City Map" Card with Incident Markers */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">

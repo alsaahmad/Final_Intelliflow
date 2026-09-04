@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "intelliflow_ai_jwt_secret_key_2026_smart_city_platform"
     JWT_ALGORITHM: str = "HS256"
 
+    # Optional Google Cloud Translation API Key
+    GOOGLE_TRANSLATION_API_KEY: str = ""
+
 
     # CORS Allowed Client Origins
     CORS_ORIGINS: List[str] = [
