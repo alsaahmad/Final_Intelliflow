@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import { useTwin } from '../../context/TwinContext';
 import { MapControls } from './MapControls';
+import { KMZLayerOverlay } from '../../../components/gis/KMZLayerOverlay';
+import { NavigationOverlay } from './NavigationOverlay';
 import { CITY_CENTER, DEFAULT_MAP_ZOOM } from '../../data/seedTwinData';
 import { Road } from '../../types';
 import '../../digitalTwin.css';
@@ -528,6 +530,8 @@ export const DigitalTwinMap: React.FC = () => {
       />
 
       {/* Interactive Map Controls Overlay */}
+      <KMZLayerOverlay map={mapInstanceRef.current} />
+      <NavigationOverlay mapInstance={mapInstanceRef.current} routesGroup={routePolylinesGroupRef.current} />
       <MapControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}

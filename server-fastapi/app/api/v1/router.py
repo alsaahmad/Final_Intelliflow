@@ -11,6 +11,9 @@ from app.api.v1.endpoints import (
     websocket,
     ai,
     translate,
+    gis,
+    simulation,
+    navigation,
 )
 
 api_v1_router = APIRouter()
@@ -49,3 +52,12 @@ api_v1_router.include_router(ai.router, prefix="/ai", tags=["AI Intelligence Dom
 
 # Include Phase 4C Multilingual Translation endpoint
 api_v1_router.include_router(translate.router, tags=["Multilingual Translation Domain (Phase 4C)"])
+
+# Include Phase 5 GIS Boundary endpoints
+api_v1_router.include_router(gis.router, prefix="/gis", tags=["GIS Boundary Domain (Phase 5)"])
+
+# Include Phase 5 SUMO Microsimulation endpoints
+api_v1_router.include_router(simulation.router, prefix="/simulation", tags=["SUMO Microsimulation Domain (Phase 5)"])
+
+# Include Phase 5.1 OSM Navigation & Route Optimization endpoints
+api_v1_router.include_router(navigation.router, prefix="/navigation", tags=["Navigation Domain (Phase 5.1)"])

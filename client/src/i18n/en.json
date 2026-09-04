@@ -31,7 +31,16 @@
     "roadClosures": "Road Closures",
     "digitalTwin": "Digital Twin",
     "simulation": "Simulation",
-    "analytics": "Analytics / Reports"
+    "analytics": "Analytics / Reports",
+    "title": "OSM Navigation",
+    "origin": "Origin Point (A)",
+    "destination": "Destination Point (B)",
+    "preset": "Quick Presets",
+    "fastest": "Fastest Route",
+    "shortest": "Shortest Distance",
+    "calculating": "Routing...",
+    "findRoute": "Find OSM Route",
+    "clear": "Clear"
   },
   "police": {
     "portalTitle": "Traffic Police Tactical Command",
@@ -75,5 +84,15 @@
     "executingSimulatedAct": "Executing Simulated Act...",
     "viewOnlyRestricted": "View Only — Execution Restricted to Traffic Police",
     "prototypeWarning": "PROTOTYPE SIMULATED ACTION — NO REAL SIGNAL CONTROL"
+  },
+  "sim": {
+    "disclaimer": "DEMO SIMULATION ONLY — SUMO MICROSIMULATION — NO REAL SIGNAL CONTROL",
+    "scenario": "Scenario",
+    "subtitle": "Digital Twin SUMO Microsimulation & Traffic Engine",
+    "runBtn": "Run SUMO Simulation",
+    "running": "Running SUMO...",
+    "signalDelta": "Green-Time Delta",
+    "baselineTitle": "Baseline State (Delta = 0s)",
+    "whatIfTitle": "SUMO What-If Scenario"
   }
 }

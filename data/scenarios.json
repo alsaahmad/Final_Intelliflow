@@ -1,0 +1,12 @@
+[
+  {
+    "scenario_id": "SCN-SUMO-001",
+    "junction_code": "J01",
+    "scenario_type": "GREEN_WAVE_EXTENSION",
+    "delta_green_time_sec": 15,
+    "duration_seconds": 900,
+    "description": "Extends green signal duration by 15s to clear peak-hour queue on Sansad Marg corridor.",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "junction_code": "J01",
+    "intersection_name": "Kartavya Path & Rafi Ahmed Kidwai Marg Intersection",
+    "latitude": 28.6137551,
+    "longitude": 77.2122049,
+    "osm_node_id": "249791204",
+    "sumo_junction_id": "cluster_12105998311_12105998312_12105998314_249791204_#2more",
+    "signal_id": "SIG-OSM-249791204",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  },
+  {
+    "junction_code": "J02",
+    "intersection_name": "Kartavya Path & Janpath Intersection",
+    "latitude": 28.6134521,
+    "longitude": 77.2184671,
+    "osm_node_id": "267196276",
+    "sumo_junction_id": "cluster_267196276_6666318646_6666318659_6666328407_#2more",
+    "signal_id": "SIG-OSM-267196276",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  },
+  {
+    "junction_code": "J03",
+    "intersection_name": "Kartavya Path Signalized Junction",
+    "latitude": 28.6130207,
+    "longitude": 77.2276662,
+    "osm_node_id": "267075196",
+    "sumo_junction_id": "267075196",
+    "signal_id": "SIG-OSM-267075196",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  },
+  {
+    "junction_code": "J14",
+    "intersection_name": "Kartavya Path & Man Singh Road Intersection",
+    "latitude": 28.6131567,
+    "longitude": 77.2247654,
+    "osm_node_id": "1870091900",
+    "sumo_junction_id": "cluster_1870091900_6689054518_6689054519_6689054520_#2more",
+    "signal_id": "SIG-OSM-1870091900",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  }
+]

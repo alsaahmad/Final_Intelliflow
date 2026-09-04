@@ -1,0 +1,54 @@
+[
+  {
+    "junction_code": "J01",
+    "timestamp": "2026-09-04T17:00:00Z",
+    "vehicle_count": 480,
+    "average_speed_kmph": 24.5,
+    "queue_length_m": 38.2,
+    "congestion_level": "MODERATE",
+    "green_time_sec": 45,
+    "signal_phase": "NORTH_SOUTH_GREEN",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  },
+  {
+    "junction_code": "J02",
+    "timestamp": "2026-09-04T17:00:00Z",
+    "vehicle_count": 520,
+    "average_speed_kmph": 21.0,
+    "queue_length_m": 44.5,
+    "congestion_level": "HEAVY",
+    "green_time_sec": 40,
+    "signal_phase": "EAST_WEST_GREEN",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  },
+  {
+    "junction_code": "J03",
+    "timestamp": "2026-09-04T17:00:00Z",
+    "vehicle_count": 390,
+    "average_speed_kmph": 29.0,
+    "queue_length_m": 25.0,
+    "congestion_level": "CLEAR",
+    "green_time_sec": 50,
+    "signal_phase": "CIRCULAR_GREEN",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  },
+  {
+    "junction_code": "J14",
+    "timestamp": "2026-09-04T17:00:00Z",
+    "vehicle_count": 610,
+    "average_speed_kmph": 17.5,
+    "queue_length_m": 58.0,
+    "congestion_level": "HEAVY",
+    "green_time_sec": 35,
+    "signal_phase": "NORTH_SOUTH_GREEN",
+    "geographic_source": "OPENSTREETMAP",
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "incident_id": "INC-SIM-001",
+    "incident_type": "VEHICLE_BREAKDOWN",
+    "junction_code": "J01",
+    "severity": "MODERATE",
+    "lanes_blocked": 1,
+    "start_time": "2026-09-04T16:30:00Z",
+    "duration_mins": 45,
+    "is_simulated": true,
+    "data_origin": "SYNTHETIC_DEMO"
+  }
+]
