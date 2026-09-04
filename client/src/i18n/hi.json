@@ -94,5 +94,11 @@
     "signalDelta": "ग्रीन-टाइम परिवर्तन",
     "baselineTitle": "बेसलाइन स्थिति (डेल्टा = 0s)",
     "whatIfTitle": "सूमो 'व्हाट-इफ' परिदृश्य"
+  },
+  "gis": {
+    "sectorBoundary": "सेक्टर ए सीमा (KML)",
+    "kmlSource": "KML सेक्टर सीमा डेटासेट",
+    "osmRoadNetwork": "ओएसएम मार्ग सड़क नेटवर्क",
+    "validatedSignal": "सत्यापित सिग्नल जंक्शन"
   }
 }

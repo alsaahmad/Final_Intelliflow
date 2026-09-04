@@ -359,12 +359,12 @@ export const CityOperationsPortal: React.FC = () => {
   };
 
 
-  // Map Markers for Live Map View
+  // Map Markers for Live Map View (Real Validated Geographic Infrastructure & Incidents)
   const rawMarkers: MapMarker[] = [
-    { id: 'j-101', lat: 28.6139, lng: 77.209, title: 'Junction A — Central Blvd (Congestion 84%)', category: 'JUNCTION', badge: 'HEAVY' },
-    { id: 'j-102', lat: 28.625, lng: 77.218, title: 'Junction B — Ring Toll (Congestion 56%)', category: 'JUNCTION', badge: 'MODERATE' },
-    { id: 'j-103', lat: 28.601, lng: 77.225, title: 'Junction C — Hospital Corridor', category: 'JUNCTION', badge: 'OPTIMAL' },
-    { id: 'j-104', lat: 28.638, lng: 77.234, title: 'Junction D — Tech Park Ring', category: 'JUNCTION', badge: 'OPTIMAL' },
+    { id: 'j01', lat: 28.6137551, lng: 77.2122049, title: 'J01 — Rafi Ahmed Kidwai Marg (Signalized)', category: 'JUNCTION', badge: 'J01', color: '#059669' },
+    { id: 'j02', lat: 28.6134521, lng: 77.2184671, title: 'J02 — Janpath Intersection (Signalized)', category: 'JUNCTION', badge: 'J02', color: '#059669' },
+    { id: 'j14', lat: 28.6131567, lng: 77.2247654, title: 'J14 — Man Singh Road (Signalized - Critical)', category: 'JUNCTION', badge: 'J14', color: '#e11d48' },
+    { id: 'j03', lat: 28.6130207, lng: 77.2276662, title: 'J03 — Kartavya Path Signalized Junction', category: 'JUNCTION', badge: 'J03', color: '#059669' },
     { id: 'h-01', lat: 28.598, lng: 77.228, title: 'City General Trauma Hospital (24 Beds Free)', category: 'HOSPITAL' },
     { id: 'amb-108', lat: 28.61, lng: 77.215, title: 'EMS Ambulance Alpha-108 (Active Corridor)', category: 'AMBULANCE' },
     ...complaints.map((c, idx): MapMarker => ({

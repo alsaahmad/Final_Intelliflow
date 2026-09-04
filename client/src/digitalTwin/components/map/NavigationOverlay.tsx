@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import L from 'leaflet';
+import React, { useState, useEffect, useRef } from 'react';
+import * as maplibregl from 'maplibre-gl';
 import { navigationApiClient, RouteResponseData } from '../../../api/navigationApiClient';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { Navigation, MapPin, Flag, Zap, Compass, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface NavigationOverlayProps {
-  mapInstance: L.Map | null;
-  routesGroup: L.LayerGroup | null;
+  mapInstance: maplibregl.Map | null;
 }
 
 const PRESET_POINTS = [
@@ -16,7 +15,7 @@ const PRESET_POINTS = [
   { name: 'J14 - Kartavya Path & Man Singh Road', lat: 28.6131567, lon: 77.2247654 },
 ];
 
-export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstance, routesGroup }) => {
+export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstance }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [originLat, setOriginLat] = useState<string>('28.6137551');
@@ -31,13 +30,16 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
   const [activeRouteIndex, setActiveRouteIndex] = useState<number>(0);
   const [clickMode, setClickMode] = useState<'ORIGIN' | 'DESTINATION' | null>(null);
 
+  const originMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const destMarkerRef = useRef<maplibregl.Marker | null>(null);
+
   // Map click listener for setting origin/destination
   useEffect(() => {
     if (!mapInstance || !clickMode) return;
 
-    const handleMapClick = (e: L.LeafletMouseEvent) => {
-      const lat = e.latlng.lat.toFixed(7);
-      const lon = e.latlng.lng.toFixed(7);
+    const handleMapClick = (e: maplibregl.MapMouseEvent) => {
+      const lat = e.lngLat.lat.toFixed(7);
+      const lon = e.lngLat.lng.toFixed(7);
       if (clickMode === 'ORIGIN') {
         setOriginLat(lat);
         setOriginLon(lon);
@@ -54,16 +56,37 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
     };
   }, [mapInstance, clickMode]);
 
-  // Clear polylines & markers on routesGroup
+  // Clear polylines & markers
   const clearMapOverlays = () => {
-    if (routesGroup) {
-      routesGroup.clearLayers();
+    if (originMarkerRef.current) {
+      originMarkerRef.current.remove();
+      originMarkerRef.current = null;
+    }
+    if (destMarkerRef.current) {
+      destMarkerRef.current.remove();
+      destMarkerRef.current = null;
+    }
+    if (mapInstance && mapInstance.isStyleLoaded()) {
+      if (mapInstance.getSource('nav-active-route')) {
+        (mapInstance.getSource('nav-active-route') as maplibregl.GeoJSONSource).setData({
+          type: 'FeatureCollection',
+          features: [],
+        });
+      }
+      if (mapInstance.getSource('nav-alt-routes')) {
+        (mapInstance.getSource('nav-alt-routes') as maplibregl.GeoJSONSource).setData({
+          type: 'FeatureCollection',
+          features: [],
+        });
+      }
     }
   };
 
-  // Render polylines and markers onto Leaflet map
+  // Render polylines and markers onto MapLibre map
   useEffect(() => {
-    if (!mapInstance || !routesGroup || !routeData) {
+    if (!mapInstance || !mapInstance.isStyleLoaded()) return;
+
+    if (!routeData) {
       clearMapOverlays();
       return;
     }
@@ -71,60 +94,117 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
     clearMapOverlays();
 
     // Start Icon
-    const originIcon = L.divIcon({
-      className: 'custom-nav-marker',
-      html: `<div style="background-color: #10B981; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">A</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
+    const originEl = document.createElement('div');
+    originEl.className = 'custom-nav-marker';
+    originEl.innerHTML = `<div style="background-color: #10B981; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 12px;">A</div>`;
+    
+    originMarkerRef.current = new maplibregl.Marker({ element: originEl })
+      .setLngLat([routeData.snapped_origin.longitude, routeData.snapped_origin.latitude])
+      .addTo(mapInstance);
 
     // Destination Icon
-    const destIcon = L.divIcon({
-      className: 'custom-nav-marker',
-      html: `<div style="background-color: #EF4444; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">B</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
+    const destEl = document.createElement('div');
+    destEl.className = 'custom-nav-marker';
+    destEl.innerHTML = `<div style="background-color: #EF4444; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 12px;">B</div>`;
+    
+    destMarkerRef.current = new maplibregl.Marker({ element: destEl })
+      .setLngLat([routeData.snapped_destination.longitude, routeData.snapped_destination.latitude])
+      .addTo(mapInstance);
 
-    const origLatLon: [number, number] = [
-      routeData.snapped_origin.latitude,
-      routeData.snapped_origin.longitude,
-    ];
-    const destLatLon: [number, number] = [
-      routeData.snapped_destination.latitude,
-      routeData.snapped_destination.longitude,
-    ];
+    // Prepare Alternative Routes GeoJSON
+    const altFeatures = routeData.routes
+      .filter((_, idx) => idx !== activeRouteIndex)
+      .map((rt) => ({
+        type: 'Feature' as const,
+        properties: { name: rt.route_type },
+        geometry: rt.geometry,
+      }));
 
-    L.marker(origLatLon, { icon: originIcon }).addTo(routesGroup);
-    L.marker(destLatLon, { icon: destIcon }).addTo(routesGroup);
+    const altGeoJson = {
+      type: 'FeatureCollection' as const,
+      features: altFeatures,
+    };
 
-    // Draw non-active alternative routes first (dashed gray)
-    routeData.routes.forEach((rt, idx) => {
-      if (idx !== activeRouteIndex) {
-        const latlngs: [number, number][] = rt.geometry.coordinates.map((c) => [c[1], c[0]]);
-        L.polyline(latlngs, {
-          color: '#6B7280',
-          weight: 5,
-          opacity: 0.6,
-          dashArray: '8, 8',
-        }).addTo(routesGroup);
-      }
-    });
+    if (mapInstance.getSource('nav-alt-routes')) {
+      (mapInstance.getSource('nav-alt-routes') as maplibregl.GeoJSONSource).setData(altGeoJson);
+    } else {
+      mapInstance.addSource('nav-alt-routes', {
+        type: 'geojson',
+        data: altGeoJson,
+      });
+      mapInstance.addLayer({
+        id: 'nav-alt-routes-line',
+        type: 'line',
+        source: 'nav-alt-routes',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#94a3b8',
+          'line-width': 5,
+          'line-opacity': 0.6,
+          'line-dasharray': [2, 2],
+        },
+      });
+    }
 
-    // Draw active primary route (solid vibrant blue)
+    // Prepare Active Route GeoJSON
     const activeRoute = routeData.routes[activeRouteIndex];
     if (activeRoute) {
-      const latlngs: [number, number][] = activeRoute.geometry.coordinates.map((c) => [c[1], c[0]]);
-      const activePolyline = L.polyline(latlngs, {
-        color: '#2563EB',
-        weight: 7,
-        opacity: 0.9,
-      }).addTo(routesGroup);
+      const activeGeoJson = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            properties: { name: activeRoute.route_type },
+            geometry: activeRoute.geometry,
+          },
+        ],
+      };
 
-      // Fit map bounds to show full route
-      mapInstance.fitBounds(activePolyline.getBounds(), { padding: [50, 50] });
+      if (mapInstance.getSource('nav-active-route')) {
+        (mapInstance.getSource('nav-active-route') as maplibregl.GeoJSONSource).setData(activeGeoJson);
+      } else {
+        mapInstance.addSource('nav-active-route', {
+          type: 'geojson',
+          data: activeGeoJson,
+        });
+        mapInstance.addLayer({
+          id: 'nav-active-route-casing',
+          type: 'line',
+          source: 'nav-active-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#1d4ed8',
+            'line-width': 10,
+            'line-opacity': 0.8,
+          },
+        });
+        mapInstance.addLayer({
+          id: 'nav-active-route-core',
+          type: 'line',
+          source: 'nav-active-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 6,
+            'line-opacity': 1,
+          },
+        });
+      }
+
+      // Fit bounds to entire route with padding
+      if (activeRoute.geometry.coordinates && activeRoute.geometry.coordinates.length > 0) {
+        const bounds = new maplibregl.LngLatBounds();
+        activeRoute.geometry.coordinates.forEach((coord: [number, number]) => {
+          bounds.extend([coord[0], coord[1]]);
+        });
+        mapInstance.fitBounds(bounds, { padding: 80, duration: 1000 });
+      }
     }
-  }, [mapInstance, routesGroup, routeData, activeRouteIndex]);
+
+    return () => {
+      clearMapOverlays();
+    };
+  }, [mapInstance, routeData, activeRouteIndex]);
 
   const handleCalculateRoute = async () => {
     setLoading(true);
@@ -166,7 +246,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
   return (
     <>
       {/* Floating Toggle Button */}
-      <div className="absolute top-20 right-4 z-[1000]">
+      <div className="absolute top-20 right-4 z-[400] pointer-events-auto">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className={`flex items-center gap-2 px-3 py-2 rounded-xl shadow-lg font-semibold text-xs transition-all border ${
@@ -182,7 +262,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
 
       {/* Navigation HUD Panel */}
       {isOpen && (
-        <div className="absolute top-32 right-4 z-[1000] w-88 max-w-[90vw] bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-4 text-slate-100 font-sans transition-all">
+        <div className="absolute top-32 right-4 z-[400] w-88 max-w-[90vw] bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-4 text-slate-100 font-sans transition-all pointer-events-auto">
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <Compass className="w-5 h-5 text-blue-400" />
@@ -370,7 +450,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
                   {routeData.routes[activeRouteIndex].steps.map((st, sIdx) => (
                     <div key={sIdx} className="text-slate-300 py-0.5 border-b border-slate-800/60 last:border-none flex justify-between">
                       <span>{sIdx + 1}. {st.instruction}</span>
-                      <span className="text-slate-500 shrink-0 ml-2">{int(st.distance_meters)}m</span>
+                      <span className="text-slate-500 shrink-0 ml-2">{Math.round(st.distance_meters)}m</span>
                     </div>
                   ))}
                 </div>
@@ -382,7 +462,3 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({ mapInstanc
     </>
   );
 };
-
-function int(val: number): number {
-  return Math.round(val);
-}

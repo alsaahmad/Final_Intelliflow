@@ -94,5 +94,11 @@
     "signalDelta": "Green-Time Delta",
     "baselineTitle": "Baseline State (Delta = 0s)",
     "whatIfTitle": "SUMO What-If Scenario"
+  },
+  "gis": {
+    "sectorBoundary": "Sector A Boundary (KML)",
+    "kmlSource": "KML Sector Boundary Dataset",
+    "osmRoadNetwork": "OSM Routable Road Network",
+    "validatedSignal": "Validated Signalized Junction"
   }
 }

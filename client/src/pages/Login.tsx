@@ -67,11 +67,26 @@ export const Login: React.FC = () => {
   const [email, setEmail] = useState('citizen@intelliflow.ai');
   const [password, setPassword] = useState('password123');
 
-  // When role changes, optionally update default email for convenience
+  // When role changes, update default email for convenience (Sign In only)
   const handleRoleSelect = (roleId: UserRole) => {
     setSelectedRole(roleId);
     const roleConfig = ROLES.find((r) => r.id === roleId);
     if (roleConfig && mode === 'login') {
+      setEmail(roleConfig.defaultEmail);
+      setPassword('password123');
+    }
+  };
+
+  // When switching to signup, always lock to CITIZEN
+  const handleModeSwitch = (newMode: 'login' | 'signup') => {
+    setMode(newMode);
+    if (newMode === 'signup') {
+      setSelectedRole('CITIZEN');
+      setEmail('');
+      setName('');
+      setPassword('');
+    } else {
+      const roleConfig = ROLES.find((r) => r.id === selectedRole) || ROLES[0];
       setEmail(roleConfig.defaultEmail);
       setPassword('password123');
     }
@@ -138,11 +153,7 @@ export const Login: React.FC = () => {
           <div className="flex p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold">
             <button
               type="button"
-              onClick={() => {
-                setMode('login');
-                const roleConfig = ROLES.find((r) => r.id === selectedRole);
-                if (roleConfig) setEmail(roleConfig.defaultEmail);
-              }}
+              onClick={() => handleModeSwitch('login')}
               className={`flex-1 py-2.5 rounded-lg transition-all ${
                 mode === 'login'
                   ? 'bg-white text-slate-900 shadow-sm'
@@ -153,11 +164,7 @@ export const Login: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setMode('signup');
-                setEmail('');
-                setName('');
-              }}
+              onClick={() => handleModeSwitch('signup')}
               className={`flex-1 py-2.5 rounded-lg transition-all ${
                 mode === 'signup'
                   ? 'bg-white text-slate-900 shadow-sm'
@@ -168,41 +175,54 @@ export const Login: React.FC = () => {
             </button>
           </div>
 
-          {/* 1. Explicit Role Selection (Choice to sign in for different roles) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700">
-                {mode === 'login' ? 'Select Role to Sign In As:' : 'Select Account Role:'}
-              </label>
-              <span className="text-[10px] text-slate-400 font-medium">1 person can have multiple role profiles</span>
+          {/* Role Selection: shown for Sign In (all roles); hidden for Create Account (Citizen only) */}
+          {mode === 'login' ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700">Select Role to Sign In As:</label>
+                <span className="text-[10px] text-slate-400 font-medium">1 person can have multiple role profiles</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {ROLES.map((r) => {
+                  const isSelected = selectedRole === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => handleRoleSelect(r.id)}
+                      className={`p-3 rounded-xl border-2 text-left transition-all flex items-start space-x-2.5 ${
+                        isSelected
+                          ? r.activeColor
+                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 text-slate-700'
+                      }`}
+                    >
+                      <div className={`mt-0.5 flex-shrink-0 ${isSelected ? 'text-current' : 'text-slate-400'}`}>
+                        {r.icon}
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs leading-tight">{r.label}</div>
+                        <div className="text-[10px] opacity-75 leading-tight mt-0.5">{r.subtitle}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {ROLES.map((r) => {
-                const isSelected = selectedRole === r.id;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => handleRoleSelect(r.id)}
-                    className={`p-3 rounded-xl border-2 text-left transition-all flex items-start space-x-2.5 ${
-                      isSelected
-                        ? r.activeColor
-                        : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 text-slate-700'
-                    }`}
-                  >
-                    <div className={`mt-0.5 flex-shrink-0 ${isSelected ? 'text-current' : 'text-slate-400'}`}>
-                      {r.icon}
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs leading-tight">{r.label}</div>
-                      <div className="text-[10px] opacity-75 leading-tight mt-0.5">{r.subtitle}</div>
-                    </div>
-                  </button>
-                );
-              })}
+          ) : (
+            // Create Account: locked to Citizen only — no role picker
+            <div className="flex items-center space-x-3 p-3 rounded-xl border-2 border-blue-200 bg-blue-50/70">
+              <div className="p-1.5 rounded-lg bg-blue-100 text-blue-600">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-xs text-blue-900">Citizen Account</div>
+                <div className="text-[10px] text-blue-700 mt-0.5">Public resident &amp; SOS access</div>
+              </div>
+              <span className="text-[9px] font-extrabold uppercase tracking-widest bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded-md">
+                Resident
+              </span>
             </div>
-          </div>
+          )}
 
           {/* Feedback Messages */}
           {error && (

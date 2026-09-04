@@ -5,6 +5,7 @@ import { useCitySync } from '../../context/CitySyncContext';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { DualMapView, MapMarker, MapPolyline } from '../../components/map/DualMapView';
 import { citizenService } from '../../services/citizenService';
+import { navigationApiClient, RouteResponseData } from '../../api/navigationApiClient';
 import {
   TrafficAlert,
   CitizenJunctionSummary,
@@ -33,11 +34,14 @@ import {
   PhoneCall,
   Send,
   CheckCircle2,
-  ShieldAlert,
+  MapPin,
+  Flag,
+  Zap,
   Sparkles,
+  ArrowLeft,
+  ShieldAlert,
   X,
   Check,
-  ArrowLeft,
 } from 'lucide-react';
 
 export const CitizenPortal: React.FC = () => {
@@ -46,8 +50,6 @@ export const CitizenPortal: React.FC = () => {
   const {
     complaints,
     addComplaint,
-    nodes,
-    calculateDijkstraRoute,
     trigger112Sos,
   } = useCitySync();
 
@@ -77,10 +79,17 @@ export const CitizenPortal: React.FC = () => {
   // Selected Junction for Detail Modal
   const [selectedJunction, setSelectedJunction] = useState<CitizenJunctionSummary | null>(null);
 
-  // Tab A: Navigation States
-  const [originId, setOriginId] = useState('node-cp');
-  const [destId, setDestId] = useState('node-hosp1');
-  const [navRoute, setNavRoute] = useState<any | null>(null);
+  // Tab A: Navigation States (OSM Road Network Router)
+  const [originLat, setOriginLat] = useState('28.6137551');
+  const [originLon, setOriginLon] = useState('77.2122049');
+  const [destLat, setDestLat] = useState('28.6130207');
+  const [destLon, setDestLon] = useState('77.2276662');
+  const [routePreference, setRoutePreference] = useState<'FASTEST' | 'SHORTEST'>('FASTEST');
+  const [osmRouteData, setOsmRouteData] = useState<RouteResponseData | null>(null);
+  const [activeRouteIndex, setActiveRouteIndex] = useState<number>(0);
+  const [navLoading, setNavLoading] = useState<boolean>(false);
+  const [navError, setNavError] = useState<string | null>(null);
+  const [clickMode, setClickMode] = useState<'ORIGIN' | 'DESTINATION' | null>(null);
 
   // Tab C: Report Form States
   const [title, setTitle] = useState('');
@@ -166,19 +175,82 @@ export const CitizenPortal: React.FC = () => {
     setTimeout(() => setConsentRevokedMsg(null), 5000);
   };
 
-  // Calculate Dijkstra Route
-  const handleCalculateRoute = () => {
-    const route = calculateDijkstraRoute(originId, destId);
-    setNavRoute(route);
+  // Calculate OSM Road Network Route
+  const handleCalculateRoute = async () => {
+    setNavLoading(true);
+    setNavError(null);
+    try {
+      const oLat = parseFloat(originLat);
+      const oLon = parseFloat(originLon);
+      const dLat = parseFloat(destLat);
+      const dLon = parseFloat(destLon);
+
+      if (isNaN(oLat) || isNaN(oLon) || isNaN(dLat) || isNaN(dLon)) {
+        throw new Error('Please enter valid numeric latitude and longitude coordinates.');
+      }
+
+      const res = await navigationApiClient.calculateRoute({
+        origin: { latitude: oLat, longitude: oLon },
+        destination: { latitude: dLat, longitude: dLon },
+        route_preference: routePreference,
+        include_alternatives: true,
+      });
+
+      setOsmRouteData(res);
+      setActiveRouteIndex(0);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Failed to calculate route over OSM road network.';
+      setNavError(msg);
+      setOsmRouteData(null);
+    } finally {
+      setNavLoading(false);
+    }
   };
 
-  // Direct Dijkstra Route Calculation to Parking Facility
+  // Sector A Prototype Presets for instant navigation
+  const SECTOR_A_PRESETS = [
+    { name: 'J01 — Rafi Ahmed Kidwai Marg (Signal)', lat: '28.6137551', lon: '77.2122049', code: 'J01' },
+    { name: 'J02 — Janpath Intersection (Signal)', lat: '28.6134521', lon: '77.2184671', code: 'J02' },
+    { name: 'J14 — Man Singh Road (Signal)', lat: '28.6131567', lon: '77.2247654', code: 'J14' },
+    { name: 'J03 — Kartavya Path Signalized Junction', lat: '28.6130207', lon: '77.2276662', code: 'J03' },
+    { name: '🅿 Connaught Central Car Park', lat: '28.6139000', lon: '77.2090000', code: 'PKG-CP' },
+    { name: '🅿 Metro Tech Hub Smart Garage', lat: '28.6195000', lon: '77.2145000', code: 'PKG-MTH' },
+    { name: '🅿 City General Trauma Parking Deck', lat: '28.6255000', lon: '77.2185000', code: 'PKG-CGT' },
+    { name: '🅿 Municipal Civic Secretariat Parking', lat: '28.6160000', lon: '77.2220000', code: 'PKG-CIVIC' },
+    { name: 'India Gate C-Hexagon Roundabout', lat: '28.6129000', lon: '77.2295000', code: 'IG' },
+    { name: 'National Museum Janpath', lat: '28.6118000', lon: '77.2192000', code: 'NM' },
+    { name: 'Udyog Bhawan Metro Station', lat: '28.6106000', lon: '77.2128000', code: 'UB' },
+  ];
+
+  // Direct Route Calculation to Parking Facility (OSM Road Snapped)
   const handleParkingDirections = (facility: ParkingFacility, _slot: ParkingSlot) => {
-    const targetNode = facility.dijkstraNodeId || 'node-cp';
-    setDestId(targetNode);
-    const route = calculateDijkstraRoute(originId, targetNode);
-    setNavRoute(route);
+    const dLat = facility.coordinates ? facility.coordinates[0].toString() : '28.6134521';
+    const dLon = facility.coordinates ? facility.coordinates[1].toString() : '77.2184671';
+    setOriginLat('28.6137551');
+    setOriginLon('77.2122049');
+    setDestLat(dLat);
+    setDestLon(dLon);
     setActiveTab('NAVIGATION');
+    setNavLoading(true);
+    setNavError(null);
+    navigationApiClient
+      .calculateRoute({
+        origin: { latitude: 28.6137551, longitude: 77.2122049 },
+        destination: { latitude: parseFloat(dLat), longitude: parseFloat(dLon) },
+        route_preference: routePreference,
+        include_alternatives: true,
+      })
+      .then((res) => {
+        setOsmRouteData(res);
+        setActiveRouteIndex(0);
+      })
+      .catch((err: any) => {
+        const msg = err.response?.data?.message || err.message || 'Failed to calculate OSM route to parking.';
+        setNavError(msg);
+      })
+      .finally(() => {
+        setNavLoading(false);
+      });
   };
 
   // Submit Citizen Complaint
@@ -207,34 +279,174 @@ export const CitizenPortal: React.FC = () => {
     setActiveTab('SOS');
   };
 
-  // Prepare map polylines and markers for DualMapView
-  const mapPolylines: MapPolyline[] = navRoute
+  const activeOsmRoute = osmRouteData && osmRouteData.routes[activeRouteIndex];
+  const mapPolylines: MapPolyline[] = activeOsmRoute
     ? [
+        // Alternative routes in dashed gray
+        ...osmRouteData.routes
+          .filter((_, idx) => idx !== activeRouteIndex)
+          .map((altRt, idx) => ({
+            id: `osm-alt-route-${idx}`,
+            coordinates: altRt.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]),
+            color: '#94a3b8',
+            weight: 5,
+            dashArray: '6, 6',
+            title: `Alternative Route (${(altRt.distance_meters / 1000).toFixed(2)} km - ${altRt.formatted_eta})`,
+          })),
+        // Active chosen route in solid blue
         {
-          id: 'dijkstra-nav-path',
-          coordinates: navRoute.pathCoordinates,
+          id: 'osm-active-route',
+          coordinates: activeOsmRoute.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]),
           color: '#2563eb',
           weight: 6,
-          title: `Optimized Route (${navRoute.totalDistanceKm} km)`,
+          title: `OSM ${activeOsmRoute.route_type.replace('_', ' ')} (${(activeOsmRoute.distance_meters / 1000).toFixed(2)} km - ${activeOsmRoute.formatted_eta})`,
         },
       ]
     : [];
 
-  const mapMarkers: MapMarker[] = nodes.map((n) => ({
-    id: n.id,
-    lat: n.coordinates[0],
-    lng: n.coordinates[1],
-    title: n.name,
-    category: n.category === 'HOSPITAL' ? 'HOSPITAL' : 'JUNCTION',
-    badge: n.category === 'HOSPITAL' ? 'H' : '•',
-    color: n.id === originId ? '#10b981' : n.id === destId ? '#2563eb' : '#64748b',
-    onClick: () => {
-      if (activeTab === 'NAVIGATION') {
-        if (!originId) setOriginId(n.id);
-        else setDestId(n.id);
-      }
-    },
-  }));
+  const oLatNum = parseFloat(originLat) || 28.6137551;
+  const oLonNum = parseFloat(originLon) || 77.2122049;
+  const dLatNum = parseFloat(destLat) || 28.6130207;
+  const dLonNum = parseFloat(destLon) || 77.2276662;
+
+  const mapMarkers: MapMarker[] = activeTab === 'NAVIGATION'
+    ? [
+        {
+          id: 'origin-pt',
+          lat: osmRouteData ? osmRouteData.snapped_origin.latitude : oLatNum,
+          lng: osmRouteData ? osmRouteData.snapped_origin.longitude : oLonNum,
+          title: `Origin (A) — ${osmRouteData ? `Snapped to Road (${osmRouteData.snapped_origin.distance_to_road_meters}m)` : 'Selected Point'}`,
+          category: 'CITIZEN_LOCATION',
+          badge: 'A',
+          color: '#10b981',
+        },
+        {
+          id: 'dest-pt',
+          lat: osmRouteData ? osmRouteData.snapped_destination.latitude : dLatNum,
+          lng: osmRouteData ? osmRouteData.snapped_destination.longitude : dLonNum,
+          title: `Destination (B) — ${osmRouteData ? `Snapped to Road (${osmRouteData.snapped_destination.distance_to_road_meters}m)` : 'Selected Point'}`,
+          category: 'CITIZEN_LOCATION',
+          badge: 'B',
+          color: '#ef4444',
+        },
+        // Validated Signalized Junction Waypoints in Sector A
+        {
+          id: 'nav-j01',
+          lat: 28.6137551,
+          lng: 77.2122049,
+          title: 'J01 — Rafi Ahmed Kidwai Marg (Traffic Signal)',
+          category: 'JUNCTION',
+          badge: 'J01',
+          color: '#059669',
+          onClick: () => {
+            setDestLat('28.6137551');
+            setDestLon('77.2122049');
+          },
+        },
+        {
+          id: 'nav-j02',
+          lat: 28.6134521,
+          lng: 77.2184671,
+          title: 'J02 — Janpath Intersection (Traffic Signal)',
+          category: 'JUNCTION',
+          badge: 'J02',
+          color: '#059669',
+          onClick: () => {
+            setDestLat('28.6134521');
+            setDestLon('77.2184671');
+          },
+        },
+        {
+          id: 'nav-j14',
+          lat: 28.6131567,
+          lng: 77.2247654,
+          title: 'J14 — Man Singh Road (Traffic Signal)',
+          category: 'JUNCTION',
+          badge: 'J14',
+          color: '#059669',
+          onClick: () => {
+            setDestLat('28.6131567');
+            setDestLon('77.2247654');
+          },
+        },
+        {
+          id: 'nav-j03',
+          lat: 28.6130207,
+          lng: 77.2276662,
+          title: 'J03 — Kartavya Path Signalized Junction',
+          category: 'JUNCTION',
+          badge: 'J03',
+          color: '#059669',
+          onClick: () => {
+            setDestLat('28.6130207');
+            setDestLon('77.2276662');
+          },
+        },
+        // Validated Smart Parking Facilities
+        {
+          id: 'nav-pkg-gar-01',
+          lat: 28.6139,
+          lng: 77.2090,
+          title: '🅿 Connaught Central Multi-Level Car Park',
+          category: 'PARKING',
+          badge: '🅿',
+          color: '#0d9488',
+          onClick: () => {
+            setDestLat('28.6139');
+            setDestLon('77.2090');
+          },
+        },
+        {
+          id: 'nav-pkg-gar-02',
+          lat: 28.6195,
+          lng: 77.2145,
+          title: '🅿 Metro Tech Hub Underground Smart Garage',
+          category: 'PARKING',
+          badge: '🅿',
+          color: '#0d9488',
+          onClick: () => {
+            setDestLat('28.6195');
+            setDestLon('77.2145');
+          },
+        },
+        {
+          id: 'nav-pkg-gar-03',
+          lat: 28.6255,
+          lng: 77.2185,
+          title: '🅿 City General Trauma Plaza Parking Deck',
+          category: 'PARKING',
+          badge: '🅿',
+          color: '#0d9488',
+          onClick: () => {
+            setDestLat('28.6255');
+            setDestLon('77.2185');
+          },
+        },
+        {
+          id: 'nav-pkg-gar-04',
+          lat: 28.6160,
+          lng: 77.2220,
+          title: '🅿 Municipal Civic Secretariat Visitor Parking',
+          category: 'PARKING',
+          badge: '🅿',
+          color: '#0d9488',
+          onClick: () => {
+            setDestLat('28.6160');
+            setDestLon('77.2220');
+          },
+        },
+      ]
+    : junctions.map((j) => ({
+        id: j.id,
+        lat: j.location[0],
+        lng: j.location[1],
+        title: `${j.name} (${j.congestionPercent}%)`,
+        category: 'JUNCTION',
+        badge: j.code,
+        color: ['J01', 'J02', 'J03', 'J14'].includes(j.code) ? '#059669' : '#2563eb',
+        onClick: () => setSelectedJunction(j),
+      }));
+
 
   // Live WebSocket Event Handler for Traffic Alerts (Strict Domain Separation)
   useEffect(() => {
@@ -415,7 +627,7 @@ export const CitizenPortal: React.FC = () => {
           </div>
         )}
 
-        {/* VIEW 2: SMART NAVIGATION (DIJKSTRA ROUTE FINDER) */}
+        {/* VIEW 2: SMART NAVIGATION (REAL OSM ROAD ROUTER) */}
         {activeTab === 'NAVIGATION' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <button
@@ -434,118 +646,274 @@ export const CitizenPortal: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-                      Smart Pathfinding & Flow Router
+                      OSM Smart Pathfinding Router
                     </h2>
                     <p className="text-xs text-slate-500 font-medium">
-                      Traffic-weighted graph engine avoiding congested corridors
+                      Real OpenStreetMap road network & A* routing graph
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-3 text-xs">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>Origin / Starting Hub</span>
+                  {/* Quick Preset Route Selector */}
+                  <div className="p-2.5 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-blue-900 uppercase tracking-wider block">
+                      ⚡ Quick Sector A Route Presets
                     </label>
-                    <select
-                      value={originId}
-                      onChange={(e) => setOriginId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {nodes.map((n) => (
-                        <option key={n.id} value={n.id}>
-                          {n.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <select
+                        onChange={(e) => {
+                          const idx = parseInt(e.target.value, 10);
+                          if (!isNaN(idx) && SECTOR_A_PRESETS[idx]) {
+                            setOriginLat(SECTOR_A_PRESETS[idx].lat);
+                            setOriginLon(SECTOR_A_PRESETS[idx].lon);
+                          }
+                        }}
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] text-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+                      >
+                        <option value="">-- Origin Preset --</option>
+                        {SECTOR_A_PRESETS.map((p, idx) => (
+                          <option key={idx} value={idx}>{p.name}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        onChange={(e) => {
+                          const idx = parseInt(e.target.value, 10);
+                          if (!isNaN(idx) && SECTOR_A_PRESETS[idx]) {
+                            setDestLat(SECTOR_A_PRESETS[idx].lat);
+                            setDestLon(SECTOR_A_PRESETS[idx].lon);
+                          }
+                        }}
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] text-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+                      >
+                        <option value="">-- Dest Preset --</option>
+                        {SECTOR_A_PRESETS.map((p, idx) => (
+                          <option key={idx} value={idx}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span>Destination Hub</span>
-                    </label>
-                    <select
-                      value={destId}
-                      onChange={(e) => setDestId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {nodes.map((n) => (
-                        <option key={n.id} value={n.id}>
-                          {n.name}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Origin Inputs */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700 flex items-center space-x-1">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Origin Point (A)</span>
+                      </label>
+                      <button
+                        onClick={() => setClickMode(clickMode === 'ORIGIN' ? null : 'ORIGIN')}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                          clickMode === 'ORIGIN'
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {clickMode === 'ORIGIN' ? 'Click Map...' : 'Pick on Map'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={originLat}
+                        onChange={(e) => setOriginLat(e.target.value)}
+                        placeholder="Latitude"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <input
+                        type="text"
+                        value={originLon}
+                        onChange={(e) => setOriginLon(e.target.value)}
+                        placeholder="Longitude"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
                   </div>
 
+                  {/* Destination Inputs */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700 flex items-center space-x-1">
+                        <Flag className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Destination Point (B)</span>
+                      </label>
+                      <button
+                        onClick={() => setClickMode(clickMode === 'DESTINATION' ? null : 'DESTINATION')}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                          clickMode === 'DESTINATION'
+                            ? 'bg-rose-600 text-white border-rose-500'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {clickMode === 'DESTINATION' ? 'Click Map...' : 'Pick on Map'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={destLat}
+                        onChange={(e) => setDestLat(e.target.value)}
+                        placeholder="Latitude"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <input
+                        type="text"
+                        value={destLon}
+                        onChange={(e) => setDestLon(e.target.value)}
+                        placeholder="Longitude"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Route Preference Switcher */}
+                  <div className="flex items-center justify-between bg-slate-100 p-1 rounded-xl">
+                    <button
+                      onClick={() => setRoutePreference('FASTEST')}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                        routePreference === 'FASTEST'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ⚡ Fastest Route
+                    </button>
+                    <button
+                      onClick={() => setRoutePreference('SHORTEST')}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                        routePreference === 'SHORTEST'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      📏 Shortest Distance
+                    </button>
+                  </div>
+
+                  {/* Compute Route Button */}
                   <button
                     onClick={handleCalculateRoute}
-                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2"
+                    disabled={navLoading}
+                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    <span>COMPUTE OPTIMIZED ROUTE</span>
+                    {navLoading ? <Zap className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span>{navLoading ? 'ROUTING OVER OSM NETWORK...' : 'COMPUTE OSM ROAD ROUTE'}</span>
                   </button>
                 </div>
 
-                {navRoute && (
+                {/* Error Banner */}
+                {navError && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start space-x-2 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{navError}</span>
+                  </div>
+                )}
+
+                {/* OSM Route Results Card */}
+                {osmRouteData && osmRouteData.routes.length > 0 && (
                   <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/60 to-indigo-50/60 border border-blue-200 space-y-3 text-xs animate-in zoom-in-95 duration-150">
                     <div className="flex items-center justify-between">
                       <span className="font-extrabold text-blue-950 uppercase tracking-wider text-[11px]">
-                        Optimal Route Computed
+                        OSM Route Computed
                       </span>
                       <span className="font-mono text-emerald-700 font-bold bg-emerald-100/80 px-2 py-0.5 rounded text-[10px]">
-                        Delay: +{navRoute.congestionDelayMinutes} min
+                        {osmRouteData.data_origin}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2 bg-white rounded-xl border border-blue-100 shadow-xs">
-                        <span className="text-[9px] text-slate-400 font-bold block">DISTANCE</span>
-                        <strong className="text-sm text-slate-900 font-mono">{navRoute.totalDistanceKm} km</strong>
+                    {/* Route Options Tabs */}
+                    {osmRouteData.routes.length > 1 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Available Route Options:</span>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {osmRouteData.routes.map((rt, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActiveRouteIndex(idx)}
+                              className={`p-2 rounded-xl text-left border transition-all ${
+                                idx === activeRouteIndex
+                                  ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs'
+                                  : 'bg-white text-slate-700 border-blue-100 hover:bg-blue-50'
+                              }`}
+                            >
+                              <div className="text-[10px] font-extrabold uppercase">{rt.route_type.replace('_', ' ')}</div>
+                              <div className="text-[11px] font-mono">{rt.formatted_eta} • {(rt.distance_meters / 1000).toFixed(1)}km</div>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <div className="p-2 bg-white rounded-xl border border-blue-100 shadow-xs">
-                        <span className="text-[9px] text-slate-400 font-bold block">TIME</span>
-                        <strong className="text-sm text-blue-700 font-mono">{navRoute.estimatedTimeMinutes} mins</strong>
-                      </div>
-                      <div className="p-2 bg-white rounded-xl border border-blue-100 shadow-xs">
-                        <span className="text-[9px] text-slate-400 font-bold block">SPEED</span>
-                        <strong className="text-sm text-slate-900 font-mono">{navRoute.averageSpeedKmh} km/h</strong>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="space-y-1 pt-1">
-                      <span className="text-[10px] font-black uppercase text-slate-500">Turn Guidance:</span>
-                      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                        {navRoute.turnByTurnInstructions.map((inst: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-start space-x-2 text-[11px]"
-                          >
-                            <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[9px] flex-shrink-0 mt-0.5">
-                              {idx + 1}
-                            </div>
-                            <span className="text-slate-800 font-medium">{inst.instruction}</span>
+                    {activeOsmRoute && (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 bg-white rounded-xl border border-blue-100 shadow-xs">
+                            <span className="text-[9px] text-slate-400 font-bold block">DISTANCE</span>
+                            <strong className="text-sm text-slate-900 font-mono">
+                              {(activeOsmRoute.distance_meters / 1000).toFixed(2)} km
+                            </strong>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <div className="p-2 bg-white rounded-xl border border-blue-100 shadow-xs">
+                            <span className="text-[9px] text-slate-400 font-bold block">ESTIMATED ETA</span>
+                            <strong className="text-sm text-blue-700 font-mono">{activeOsmRoute.formatted_eta}</strong>
+                          </div>
+                          <div className="p-2 bg-white rounded-xl border border-blue-100 shadow-xs">
+                            <span className="text-[9px] text-slate-400 font-bold block">MANEUVERS</span>
+                            <strong className="text-sm text-slate-900 font-mono">{activeOsmRoute.steps.length} steps</strong>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[10px] font-black uppercase text-slate-500">Turn Guidance:</span>
+                          <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                            {activeOsmRoute.steps.map((st, idx) => (
+                              <div
+                                key={idx}
+                                className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-start justify-between space-x-2 text-[11px]"
+                              >
+                                <div className="flex items-start space-x-2">
+                                  <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[9px] flex-shrink-0 mt-0.5">
+                                    {idx + 1}
+                                  </div>
+                                  <span className="text-slate-800 font-medium">{st.instruction}</span>
+                                </div>
+                                <span className="font-mono text-[10px] text-slate-400 shrink-0">{Math.round(st.distance_meters)}m</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
 
-              <div className="lg:col-span-7 h-[460px] rounded-3xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100">
+              <div className="lg:col-span-7 h-[520px] rounded-3xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 relative">
                 <DualMapView
                   center={[28.6139, 77.209]}
                   zoom={14}
                   markers={mapMarkers}
                   polylines={mapPolylines}
                   showControls={true}
+                  showKmlBoundary={true}
+                  onMapClick={(coords) => {
+                    if (clickMode === 'ORIGIN') {
+                      setOriginLat(coords[0].toFixed(7));
+                      setOriginLon(coords[1].toFixed(7));
+                      setClickMode(null);
+                    } else if (clickMode === 'DESTINATION') {
+                      setDestLat(coords[0].toFixed(7));
+                      setDestLon(coords[1].toFixed(7));
+                      setClickMode(null);
+                    }
+                  }}
                 />
               </div>
             </div>
           </div>
         )}
+
 
         {/* VIEW 3: SMART MOVIE-THEATRE PARKING FINDER (PHASE 2D) */}
         {activeTab === 'PARKING' && (
@@ -818,8 +1186,15 @@ export const CitizenPortal: React.FC = () => {
         junction={selectedJunction}
         onClose={() => setSelectedJunction(null)}
         onNavigateToJunction={(jId) => {
-          setDestId(jId);
+          const match = junctions.find((j) => j.id === jId);
+          if (match && match.location) {
+            setDestLat(match.location[0].toString());
+            setDestLon(match.location[1].toString());
+          }
           setActiveTab('NAVIGATION');
+          setTimeout(() => {
+            handleCalculateRoute();
+          }, 100);
         }}
       />
 

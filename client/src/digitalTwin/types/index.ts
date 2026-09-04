@@ -236,6 +236,7 @@ export interface AIRecommendation {
 
 export interface SimulationResult {
   scenarioConfig: SimulationScenarioConfig;
+  junctionCode?: string;
   normalState: {
     averageTrafficPercent: number;
     averageEtaMinutes: number;

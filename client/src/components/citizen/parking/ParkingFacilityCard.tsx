@@ -7,18 +7,21 @@ import {
   ArrowRight,
   Clock,
   MapPin,
+  Navigation,
 } from 'lucide-react';
 
 interface ParkingFacilityCardProps {
   facility: ParkingFacility;
   isSelected: boolean;
   onSelect: (facility: ParkingFacility) => void;
+  onGetDirections?: (facility: ParkingFacility) => void;
 }
 
 export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({
   facility,
   isSelected,
   onSelect,
+  onGetDirections,
 }) => {
   const isNearlyFull = facility.occupancyPercent >= 75;
 
@@ -117,10 +120,26 @@ export const ParkingFacilityCard: React.FC<ParkingFacilityCardProps> = ({
             </span>
           )}
         </div>
-
-        <div className="flex items-center space-x-1 text-teal-700 font-extrabold text-xs group">
-          <span>{isSelected ? 'Viewing Slots' : 'View Slots'}</span>
-          <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isSelected ? 'translate-x-1' : 'group-hover:translate-x-1'}`} />
+ 
+        <div className="flex items-center space-x-2">
+          {onGetDirections && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onGetDirections(facility);
+              }}
+              className="px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-extrabold text-[11px] border border-teal-200 transition-colors flex items-center space-x-1 shadow-xs"
+              title="Get OSM road directions to this parking facility"
+            >
+              <Navigation className="w-3 h-3 text-teal-700" />
+              <span>Directions</span>
+            </button>
+          )}
+          <div className="flex items-center space-x-1 text-teal-700 font-extrabold text-xs group">
+            <span>{isSelected ? 'Viewing Slots' : 'View Slots'}</span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isSelected ? 'translate-x-1' : 'group-hover:translate-x-1'}`} />
+          </div>
         </div>
       </div>
     </div>

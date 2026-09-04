@@ -3,7 +3,6 @@ import xml.etree.ElementTree as ET
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.core.security import get_current_user_payload
-
 router = APIRouter()
 
 # Approved GIS directory relative to repository root
@@ -133,3 +132,92 @@ async def get_gis_layers(
         )
 
     return parse_kml_to_geojson(APPROVED_KML_PATH)
+
+
+OSM_FILE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../SUMO/networks/sector_a/sector_a.osm"))
+_cached_osm_geojson = None
+
+def parse_osm_roads_to_geojson(osm_path: str) -> Dict[str, Any]:
+    global _cached_osm_geojson
+    if _cached_osm_geojson is not None:
+        return _cached_osm_geojson
+
+    if not os.path.exists(osm_path):
+        return {"success": False, "type": "FeatureCollection", "features": []}
+
+    try:
+        tree = ET.parse(osm_path)
+        root = tree.getroot()
+    except Exception:
+        return {"success": False, "type": "FeatureCollection", "features": []}
+
+    nodes = {}
+    for node in root.findall("node"):
+        nid = node.attrib.get("id")
+        lat = float(node.attrib.get("lat", 0))
+        lon = float(node.attrib.get("lon", 0))
+        nodes[nid] = [lon, lat]
+
+    routable_highways = {
+        "primary", "secondary", "tertiary", "residential", "unclassified",
+        "trunk", "motorway", "motorway_link", "trunk_link", "primary_link",
+        "secondary_link", "tertiary_link", "living_street", "service"
+    }
+
+    features = []
+    for way in root.findall("way"):
+        tags = {t.attrib["k"]: t.attrib["v"] for t in way.findall("tag")}
+        hw = tags.get("highway")
+        if not hw or hw not in routable_highways:
+            continue
+
+        way_id = way.attrib.get("id")
+        street_name = tags.get("name", f"{hw.capitalize()} Road")
+        nd_refs = [nd.attrib["ref"] for nd in way.findall("nd") if nd.attrib["ref"] in nodes]
+
+        if len(nd_refs) >= 2:
+            coords = [nodes[ref] for ref in nd_refs]
+            features.append({
+                "type": "Feature",
+                "properties": {
+                    "id": f"way_{way_id}",
+                    "name": street_name,
+                    "highway": hw,
+                    "source": "OPENSTREETMAP_SECTOR_A",
+                },
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": coords,
+                },
+            })
+
+    _cached_osm_geojson = {
+        "success": True,
+        "type": "FeatureCollection",
+        "features": features,
+    }
+    return _cached_osm_geojson
+
+
+@router.get(
+    "/roads",
+    summary="Get OSM Road Network Layer",
+    description="Returns authorized GeoJSON LineStrings representing the routable OSM road network in sector_a.",
+)
+async def get_osm_road_network(
+    user_payload: Dict[str, Any] = Depends(get_current_user_payload),
+) -> Dict[str, Any]:
+    """Retrieves OSM road network in normalized GeoJSON format."""
+    user_role = user_payload.get("role", "CITIZEN").upper()
+    if user_role not in ALLOWED_GIS_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "success": False,
+                "error": "FORBIDDEN",
+                "message": f"Role '{user_role}' is not authorized to access GIS layer endpoints.",
+            },
+        )
+
+    return parse_osm_roads_to_geojson(OSM_FILE_PATH)
+

@@ -1,36 +1,9 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useTwin } from '../../context/TwinContext';
+import { simulationApiClient, SimulationRunResponse } from '../../../api/simulationApiClient';
 import { AIRecommendationCard } from './AIRecommendationCard';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { Cpu, Play, Pause, RotateCcw, X, Activity, ShieldAlert, Sliders } from 'lucide-react';
-
-interface SumoMetrics {
-  average_travel_time_sec: number;
-  average_vehicle_delay_sec: number;
-  queue_length_meters: number;
-  throughput_veh_per_hr: number;
-  waiting_time_sec: number;
-  vehicle_count: number;
-}
-
-interface SumoComparison {
-  travel_time_change_pct: number;
-  delay_change_pct: number;
-  queue_length_change_pct: number;
-  throughput_change_pct: number;
-}
-
-interface SumoRunResult {
-  junction_code: string;
-  junction_name: string;
-  delta_green_time_sec: number;
-  duration_seconds: number;
-  baseline: SumoMetrics;
-  scenario: SumoMetrics;
-  comparison: SumoComparison;
-  disclaimer: string;
-}
 
 export const SimulationHUD: React.FC = () => {
   const { t } = useTranslation();
@@ -48,7 +21,7 @@ export const SimulationHUD: React.FC = () => {
 
   const [sumoDelta, setSumoDelta] = useState<number>(15);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
-  const [sumoResult, setSumoResult] = useState<SumoRunResult | null>(null);
+  const [sumoResult, setSumoResult] = useState<SimulationRunResponse | null>(null);
 
   if (mode !== 'SIMULATION' || !simulationResult) return null;
 
@@ -57,27 +30,17 @@ export const SimulationHUD: React.FC = () => {
   const handleRunSumoSimulation = async () => {
     setIsSimulating(true);
     try {
-      const token = localStorage.getItem('token');
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      const response = await simulationApiClient.runSimulation({
+        junction_code: simulationResult.junctionCode || 'J01',
+        delta_green_time_sec: sumoDelta,
+        duration_seconds: 900,
+      });
 
-      const response = await axios.post(
-        'http://localhost:8000/api/v1/simulation/run',
-        {
-          junction_code: 'J01',
-          delta_green_time_sec: sumoDelta,
-          duration_seconds: 900,
-        },
-        { headers }
-      );
-
-      if (response.data) {
-        setSumoResult(response.data);
+      if (response && response.success) {
+        setSumoResult(response);
       }
-    } catch (err) {
-      console.warn('SUMO Simulation endpoint error (falling back to client simulation state):', err);
+    } catch (err: any) {
+      console.warn('SUMO Simulation endpoint notice (using client simulation physics):', err?.message || err);
     } finally {
       setIsSimulating(false);
     }
@@ -257,7 +220,7 @@ export const SimulationHUD: React.FC = () => {
 
         {/* Timeline Interactive Step Scrubber */}
         <div className="grid grid-cols-6 gap-1 sm:gap-2 pt-1">
-          {simulationResult.timeline.map((step, idx) => {
+          {simulationResult.timeline.map((step: any, idx: number) => {
             const isCurrent = idx === simulationStepIndex;
             const isPassed = idx < simulationStepIndex;
             return (

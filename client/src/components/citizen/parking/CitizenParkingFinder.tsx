@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ParkingFacility,
   ParkingSlot,
 } from '../../../types/citizen';
 import { citizenParkingService } from '../../../services/citizenService';
+import { navigationApiClient, RouteResponseData } from '../../../api/navigationApiClient';
+import { DualMapView, MapMarker, MapPolyline } from '../../map/DualMapView';
 import { ParkingFacilityCard } from './ParkingFacilityCard';
 import { CinemaSeatParkingGrid } from './CinemaSeatParkingGrid';
 import { ParkingSlotDetailCard } from './ParkingSlotDetailCard';
@@ -17,6 +19,10 @@ import {
   X,
   Sparkles,
   Info,
+  Navigation,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface CitizenParkingFinderProps {
@@ -35,6 +41,15 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
   const [filterMode, setFilterMode] = useState<'ALL' | 'EV_ONLY' | 'NEARBY'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // User Origin Location in Delhi (Default Central Delhi: 28.6137551, 77.2122049)
+  const [userOrigin, setUserOrigin] = useState<[number, number]>([28.6137551, 77.2122049]);
+  const [routePreference, setRoutePreference] = useState<'FASTEST' | 'SHORTEST'>('FASTEST');
+  const [osmRouteData, setOsmRouteData] = useState<RouteResponseData | null>(null);
+  const [activeRouteIndex, setActiveRouteIndex] = useState<number>(0);
+  const [navLoading, setNavLoading] = useState<boolean>(false);
+  const [navError, setNavError] = useState<string | null>(null);
+  const [showTurnSteps, setShowTurnSteps] = useState<boolean>(false);
 
   // Demo Pass Modal State
   const [passModalData, setPassModalData] = useState<{
@@ -91,13 +106,50 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
     return activeFacility.slots.find((s) => s.id === selectedSlotId) || null;
   }, [activeFacility, selectedSlotId]);
 
+  // Calculate Real OSM Road Route to target parking facility
+  const handleCalculateParkingRoute = useCallback(
+    async (targetFacility: ParkingFacility, customOrigin?: [number, number], preference?: 'FASTEST' | 'SHORTEST') => {
+      if (!targetFacility || !targetFacility.coordinates) return;
+      const origin = customOrigin || userOrigin;
+      const pref = preference || routePreference;
+
+      setNavLoading(true);
+      setNavError(null);
+      try {
+        const res = await navigationApiClient.calculateRoute({
+          origin: { latitude: origin[0], longitude: origin[1] },
+          destination: { latitude: targetFacility.coordinates[0], longitude: targetFacility.coordinates[1] },
+          route_preference: pref,
+          include_alternatives: true,
+        });
+        setOsmRouteData(res);
+        setActiveRouteIndex(0);
+      } catch (err: any) {
+        const msg = err.response?.data?.message || err.message || 'Failed to calculate OSM route to parking.';
+        setNavError(msg);
+        setOsmRouteData(null);
+      } finally {
+        setNavLoading(false);
+      }
+    },
+    [userOrigin, routePreference]
+  );
+
+  // Trigger initial route calculation when activeFacility loads
+  useEffect(() => {
+    if (activeFacility && !osmRouteData && !navLoading) {
+      handleCalculateParkingRoute(activeFacility);
+    }
+  }, [activeFacility]);
+
   // Handle facility selection
   const handleSelectFacility = (facility: ParkingFacility) => {
     setSelectedFacilityId(facility.id);
     setSelectedSlotId(null); // Clear slot selection on facility switch
+    handleCalculateParkingRoute(facility);
   };
 
-  // Handle slot selection (Correction 1: Pure UI state, toggle or replace)
+  // Handle slot selection
   const handleSelectSlot = (slot: ParkingSlot) => {
     if (slot.status !== 'AVAILABLE') return;
     setSelectedSlotId((prev) => (prev === slot.id ? null : slot.id));
@@ -123,6 +175,69 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
     });
   };
 
+  // Convert facilities and user origin into DualMapView markers
+  const mapMarkers: MapMarker[] = useMemo(() => {
+    const markers: MapMarker[] = [];
+
+    // 1. User Location Origin Marker
+    markers.push({
+      id: 'user-origin-pt',
+      lat: osmRouteData ? osmRouteData.snapped_origin.latitude : userOrigin[0],
+      lng: osmRouteData ? osmRouteData.snapped_origin.longitude : userOrigin[1],
+      title: 'Your Location (Central Delhi Origin)',
+      category: 'CITIZEN_LOCATION',
+      badge: '📍',
+      color: '#10b981',
+    });
+
+    // 2. Parking Facility Markers for all existing parking lots
+    facilities.forEach((fac) => {
+      const isSelected = activeFacility?.id === fac.id;
+      markers.push({
+        id: `parking-fac-${fac.id}`,
+        lat: fac.coordinates[0],
+        lng: fac.coordinates[1],
+        title: `${fac.name} — ${fac.availableSlots}/${fac.totalSlots} Slots Free (₹${fac.hourlyRateInr}/hr)`,
+        category: 'PARKING',
+        badge: '🅿',
+        color: isSelected ? '#0f766e' : '#0d9488',
+        onClick: () => {
+          handleSelectFacility(fac);
+        },
+      });
+    });
+
+    return markers;
+  }, [facilities, activeFacility, osmRouteData, userOrigin]);
+
+  // Construct OSM Road Navigation Polylines
+  const activeOsmRoute = osmRouteData && osmRouteData.routes[activeRouteIndex];
+  const mapPolylines: MapPolyline[] = useMemo(() => {
+    if (!activeOsmRoute) return [];
+
+    return [
+      // Alternative routes in dashed neutral gray
+      ...osmRouteData.routes
+        .filter((_, idx) => idx !== activeRouteIndex)
+        .map((altRt, idx) => ({
+          id: `osm-parking-alt-${idx}`,
+          coordinates: altRt.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]),
+          color: '#94a3b8',
+          weight: 5,
+          dashArray: '6, 6',
+          title: `Alternative Route (${(altRt.distance_meters / 1000).toFixed(2)} km - ${altRt.formatted_eta})`,
+        })),
+      // Active chosen route in solid blue
+      {
+        id: 'osm-parking-active-route',
+        coordinates: activeOsmRoute.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]),
+        color: '#2563eb',
+        weight: 6,
+        title: `OSM Route to ${activeFacility?.name} (${(activeOsmRoute.distance_meters / 1000).toFixed(2)} km - ${activeOsmRoute.formatted_eta})`,
+      },
+    ];
+  }, [activeOsmRoute, osmRouteData, activeRouteIndex, activeFacility]);
+
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {/* 🧭 Top Navigation & Back Header */}
@@ -139,10 +254,10 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
         <div className="flex items-center space-x-2 text-[11px] text-slate-500 font-medium">
           <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 font-bold">
             <Info className="w-3 h-3 text-blue-600" />
-            <span>Designed with accessibility considerations based on WCAG/GIGW guidance.</span>
+            <span>Real OpenStreetMap Road Navigation to Selected Parking Lots</span>
           </span>
-          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-black border border-amber-200">
-            DEMO DATA
+          <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 text-[10px] font-black border border-teal-200">
+            OSM NAVIGATION
           </span>
         </div>
       </div>
@@ -163,7 +278,7 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
                 Find Parking Facilities
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Live availability, hourly tariffs, and EV charging points
+                Live availability, hourly tariffs, and real OSM navigation
               </p>
             </div>
           </div>
@@ -233,6 +348,10 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
                   facility={fac}
                   isSelected={activeFacility?.id === fac.id}
                   onSelect={handleSelectFacility}
+                  onGetDirections={(f) => {
+                    handleSelectFacility(f);
+                    handleCalculateParkingRoute(f);
+                  }}
                 />
               ))
             )}
@@ -240,64 +359,215 @@ export const CitizenParkingFinder: React.FC<CitizenParkingFinderProps> = ({
         </div>
 
         {/* =========================================================================
-            RIGHT COLUMN (Cols 6-12): MOVIE-THEATRE SEAT STYLE SLOT SELECTION
+            RIGHT COLUMN (Cols 6-12): PARKING MAP + OSM ROUTE + SLOTS SELECTION
            ========================================================================= */}
         <div className="lg:col-span-7 space-y-5">
           {activeFacility ? (
-            <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-5 shadow-sm">
-              {/* Facility Header Summary */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono text-xs font-black text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                      {activeFacility.code}
-                    </span>
-                    <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                      {activeFacility.name}
-                    </h2>
+            <div className="space-y-5">
+              {/* 🗺️ Interactive Smart Parking Map & OSM Road Navigation Card */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
+                {/* Header & Quick Action */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <Navigation className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">
+                        Parking Location & OSM Navigation
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Real-time A* routing over OpenStreetMap road geometry to {activeFacility.name}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    {activeFacility.address} • {activeFacility.distanceDisplay} • Rate: ₹{activeFacility.hourlyRateInr}/hr
-                  </p>
+
+                  {/* Route Preference Toggle */}
+                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
+                    <button
+                      onClick={() => {
+                        setRoutePreference('FASTEST');
+                        handleCalculateParkingRoute(activeFacility, undefined, 'FASTEST');
+                      }}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        routePreference === 'FASTEST' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Fastest
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRoutePreference('SHORTEST');
+                        handleCalculateParkingRoute(activeFacility, undefined, 'SHORTEST');
+                      }}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        routePreference === 'SHORTEST' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Shortest
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <span className="px-3 py-1 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black">
-                    {activeFacility.availableSlots} / {activeFacility.totalSlots} FREE
-                  </span>
+                {/* Map Canvas */}
+                <div className="h-[340px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
+                  <DualMapView
+                    center={activeFacility.coordinates}
+                    zoom={14}
+                    markers={mapMarkers}
+                    polylines={mapPolylines}
+                    showControls={true}
+                    showKmlBoundary={true}
+                    onMapClick={(coords) => {
+                      setUserOrigin(coords);
+                      handleCalculateParkingRoute(activeFacility, coords);
+                    }}
+                  />
+
+                  {/* Map Status Badge Overlay */}
+                  <div className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md text-[11px] font-extrabold text-slate-800 flex items-center space-x-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Destination: <strong>{activeFacility.name}</strong></span>
+                  </div>
                 </div>
+
+                {/* Navigation Metrics & Guidance Details */}
+                {navLoading && (
+                  <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 font-bold text-xs flex items-center space-x-2 animate-pulse">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span>Calculating real-time route over OpenStreetMap network...</span>
+                  </div>
+                )}
+
+                {navError && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs">
+                    {navError}
+                  </div>
+                )}
+
+                {activeOsmRoute && !navLoading && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/70 to-teal-50/70 border border-blue-200 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="text-left">
+                          <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Distance</span>
+                          <strong className="text-base font-black text-slate-900 font-mono">
+                            {(activeOsmRoute.distance_meters / 1000).toFixed(2)} km
+                          </strong>
+                        </div>
+                        <div className="h-7 w-px bg-slate-200" />
+                        <div className="text-left">
+                          <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Estimated ETA</span>
+                          <strong className="text-base font-black text-emerald-700 font-mono">
+                            {activeOsmRoute.formatted_eta}
+                          </strong>
+                        </div>
+                        <div className="h-7 w-px bg-slate-200" />
+                        <div className="text-left">
+                          <span className="text-[10px] font-extrabold text-slate-500 uppercase block">Maneuvers</span>
+                          <strong className="text-base font-black text-blue-700 font-mono">
+                            {activeOsmRoute.steps.length} Steps
+                          </strong>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowTurnSteps(!showTurnSteps)}
+                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center space-x-1 shadow-xs"
+                      >
+                        <span>{showTurnSteps ? 'Hide Guidance' : 'View Turn Guidance'}</span>
+                        {showTurnSteps ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    {/* Turn-by-Turn Guidance Accordion */}
+                    {showTurnSteps && (
+                      <div className="pt-2 border-t border-slate-200/80 space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block">
+                          Step-by-Step Road Guidance:
+                        </span>
+                        {activeOsmRoute.steps.map((step, sIdx) => (
+                          <div
+                            key={sIdx}
+                            className="p-2 rounded-xl bg-white border border-slate-200/80 text-[11px] font-semibold text-slate-800 flex items-start space-x-2"
+                          >
+                            <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-700 font-mono text-[10px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                              {sIdx + 1}
+                            </span>
+                            <div className="flex-1">
+                              <div>{step.instruction}</div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                {step.street_name || 'Connecting Road'} • {step.distance_meters}m • ~{Math.round(step.duration_seconds)}s
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Status Legend */}
-              <ParkingLegend />
-
-              {/* 🎬 Visual Cinema-Seat Parking Slot Grid */}
-              <CinemaSeatParkingGrid
-                facility={activeFacility}
-                selectedSlotId={selectedSlotId}
-                onSelectSlot={handleSelectSlot}
-              />
-
-              {/* Selected Slot Details Panel (Interactive) */}
-              {selectedSlot ? (
-                <ParkingSlotDetailCard
-                  facility={activeFacility}
-                  slot={selectedSlot}
-                  onGetDirections={onGetDirections}
-                  onSimulatePass={handleSimulatePass}
-                  onClearSelection={() => setSelectedSlotId(null)}
-                />
-              ) : (
-                <div className="p-6 rounded-3xl bg-slate-50/70 border border-dashed border-slate-300 text-center space-y-1.5">
-                  <Sparkles className="w-5 h-5 text-teal-600 mx-auto" />
-                  <div className="text-xs font-extrabold text-slate-800">
-                    Select any green Available slot above
+              {/* 🎬 Visual Cinema-Seat Parking Slot Grid & Details Card */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-5 shadow-sm">
+                {/* Facility Header Summary */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-xs font-black text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                        {activeFacility.code}
+                      </span>
+                      <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                        {activeFacility.name}
+                      </h2>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                      {activeFacility.address} • {activeFacility.distanceDisplay} • Rate: ₹{activeFacility.hourlyRateInr}/hr
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-500 max-w-sm mx-auto font-medium">
-                    Tap a parking bay on the map to inspect bay amenities, calculate tariffs, and trigger direct GPS navigation.
-                  </p>
+
+                  <div className="flex items-center space-x-2">
+                    <span className="px-3 py-1 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black">
+                      {activeFacility.availableSlots} / {activeFacility.totalSlots} FREE
+                    </span>
+                  </div>
                 </div>
-              )}
+
+                {/* Status Legend */}
+                <ParkingLegend />
+
+                {/* Cinema-Seat Parking Slot Grid */}
+                <CinemaSeatParkingGrid
+                  facility={activeFacility}
+                  selectedSlotId={selectedSlotId}
+                  onSelectSlot={handleSelectSlot}
+                />
+
+                {/* Selected Slot Details Panel (Interactive) */}
+                {selectedSlot ? (
+                  <ParkingSlotDetailCard
+                    facility={activeFacility}
+                    slot={selectedSlot}
+                    onGetDirections={(fac, s) => {
+                      handleCalculateParkingRoute(fac);
+                      onGetDirections(fac, s);
+                    }}
+                    onSimulatePass={handleSimulatePass}
+                    onClearSelection={() => setSelectedSlotId(null)}
+                  />
+                ) : (
+                  <div className="p-6 rounded-3xl bg-slate-50/70 border border-dashed border-slate-300 text-center space-y-1.5">
+                    <Sparkles className="w-5 h-5 text-teal-600 mx-auto" />
+                    <div className="text-xs font-extrabold text-slate-800">
+                      Select any green Available slot above
+                    </div>
+                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto font-medium">
+                      Tap a parking bay on the map to inspect bay amenities, calculate tariffs, and trigger direct GPS navigation.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="bg-white rounded-3xl border border-slate-200 p-10 text-center text-slate-400 font-medium">

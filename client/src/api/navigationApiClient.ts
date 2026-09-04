@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const FASTAPI_NAVIGATION_URL = 'http://localhost:8000/api/v1/navigation';
+const FASTAPI_NAVIGATION_URL =
+  import.meta.env.VITE_FASTAPI_NAVIGATION_URL ||
+  (import.meta.env.VITE_FASTAPI_BASE_URL
+    ? `${import.meta.env.VITE_FASTAPI_BASE_URL}/navigation`
+    : 'http://localhost:8000/api/v1/navigation');
 
 const navigationApi = axios.create({
   baseURL: FASTAPI_NAVIGATION_URL,
@@ -11,7 +15,7 @@ const navigationApi = axios.create({
 });
 
 navigationApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('intelliflow_token');
+  const token = localStorage.getItem('intelliflow_token') || localStorage.getItem('token');
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
