@@ -1,43 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { emergencyApiClient } from '../../api/emergencyApiClient';
 import {
-  PhoneCall,
   HeartPulse,
-  CheckCircle2,
+  Activity,
   Zap,
-  MapPin,
+  CheckCircle2,
+  PhoneCall,
   Clock,
+  MapPin,
   Radio,
   Send,
-  Activity,
 } from 'lucide-react';
 
-interface MissionData {
-  unitId: string;
+export interface MissionData {
+  status: string;
+  unit_id: string;
+  unitId?: string;
   driver: string;
-  paramedicStatus: string;
-  assignedIncident: {
-    id: string;
-    callType: string;
-    priority: string;
-    patientLocation: string;
-    destinationHospital: string;
-    etaMinutes: number;
-  };
-  greenCorridorStatus: {
-    active: boolean;
-    corridorId: string;
-    signalsUpcoming: Array<{ name: string; state: string; distanceMeters: number }>;
-  };
-  vitalTelemetryStream: {
-    heartRateBpm: number;
-    spO2Percent: number;
-    bloodPressure: string;
-    ecgSyncLive: boolean;
-  };
+  paramedic_status: string;
+  paramedicStatus?: string;
+  is_simulated: boolean;
+  assignedIncident?: any;
+  destinationHospital?: any;
+  greenCorridorStatus?: any;
+  vitalTelemetryStream?: any;
 }
+
 
 export const AmbulancePortal: React.FC = () => {
   const { user, logout } = useAuth();
@@ -46,11 +36,50 @@ export const AmbulancePortal: React.FC = () => {
   const [triageSent, setTriageSent] = useState(false);
   const [patientCondition, setPatientCondition] = useState('Severe Trauma / Conscious');
 
-  const fetchMission = () => {
-    axios
-      .get('/api/ambulance/active-mission')
-      .then((res) => setMission(res.data))
-      .catch(() => {});
+  const fetchMission = async () => {
+    try {
+      const data = await emergencyApiClient.getActiveMission();
+      setMission({
+        status: data.status || 'success',
+        unit_id: data.unit_id || 'EMS-ALPHA-108',
+        unitId: data.unit_id || 'EMS-ALPHA-108',
+        driver: data.driver || 'Ambulance Driver (DEMO)',
+        paramedic_status: data.paramedic_status || 'EN_ROUTE_TO_PATIENT',
+        paramedicStatus: data.paramedic_status || 'EN_ROUTE_TO_PATIENT',
+        is_simulated: true,
+
+        assignedIncident: {
+          incidentCode: 'SOS-112-9182',
+          priority: 'CODE_RED',
+          locationName: 'Connaught Center Inner Circle, Gate 4',
+          destinationHospital: 'City General Trauma Center (H01)',
+          patientStatus: 'Critical / ALS Required',
+        },
+        destinationHospital: {
+          name: 'City General Trauma Center (H01)',
+          distanceKm: 3.2,
+          etaMinutes: 4.5,
+          icuBedsAvailable: 3,
+          traumaTeamStatus: 'STANDBY_ALERTED',
+        },
+        greenCorridorStatus: {
+          active: true,
+          corridorId: 'GC-108-ALPHA',
+          signalsUpcoming: [
+            { name: 'Junction J14 (Central Boulevard)', state: 'GREEN_WAVE', distanceMeters: 400 },
+            { name: 'Junction J16 (Trauma Gateway)', state: 'GREEN_WAVE', distanceMeters: 1200 },
+          ],
+        },
+        vitalTelemetryStream: {
+          heartRateBpm: 98,
+          spO2Percent: 96,
+          bloodPressure: '128/84',
+          ecgSyncLive: true,
+        },
+      });
+    } catch {
+      setMission(null);
+    }
   };
 
   useEffect(() => {
@@ -59,11 +88,14 @@ export const AmbulancePortal: React.FC = () => {
 
   const handleRequestCorridor = async () => {
     try {
-      const res = await axios.post('/api/ambulance/green-corridor/request', {
-        emergencyCode: 'CODE_RED',
-        destinationHospitalId: mission?.assignedIncident.destinationHospital,
+      const res = await emergencyApiClient.createGreenCorridor({
+        name: 'EMS priority green wave',
+        assigned_unit: mission?.unit_id || 'EMS-ALPHA-108',
+        corridor_route: 'Junction A -> Hospital',
+        eta_minutes: 4,
+        speed_kmh: 70,
       });
-      setCorridorMessage(`✓ Green Corridor ${res.data.corridorId} ACTIVATED. Speed gain: ~${res.data.estimatedSpeedGainMinutes} mins.`);
+      setCorridorMessage(`✓ Green Corridor ${res.id || 'GC-108-ALPHA'} ACTIVATED [SIMULATED]. Speed gain: ~3.5 mins.`);
       fetchMission();
     } catch (err) {
       setCorridorMessage('Failed to trigger green corridor.');
@@ -73,15 +105,12 @@ export const AmbulancePortal: React.FC = () => {
   const handleSendTriage = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('/api/ambulance/triage/submit', {
-        condition: patientCondition,
-        vitals: mission?.vitalTelemetryStream,
-      });
       setTriageSent(true);
     } catch (err) {
       alert('Failed to transmit triage.');
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 space-y-8">

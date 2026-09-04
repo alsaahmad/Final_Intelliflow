@@ -32,6 +32,13 @@ yarn-error.log*
 logs/
 *.log
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
 # Editor & OS
 .vscode/
 .idea/

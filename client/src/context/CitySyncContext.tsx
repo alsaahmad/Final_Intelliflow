@@ -8,6 +8,8 @@ import {
 import { MOCK_PARKING_FACILITIES } from '../services/citizenService';
 import { complaintsApiClient } from '../api/complaintsApiClient';
 import { parkingApiClient } from '../api/parkingApiClient';
+import { emergencyApiClient } from '../api/emergencyApiClient';
+
 
 
 export interface CitizenComplaint {
@@ -486,7 +488,7 @@ export const CitySyncProvider: React.FC<{ children: ReactNode }> = ({ children }
     const newDispatch: SosDispatchEvent = {
       id: `sos-${Date.now()}`,
       code: `SOS-112-${codeNum}`,
-      citizenName: citizenName || 'Verified Citizen',
+      citizenName: citizenName || 'Verified Citizen (DEMO - Masked)',
       location: location || 'GPS Location: Connaught Center Sector 4',
       coordinates: coordinates || [28.6139, 77.2090],
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -497,8 +499,29 @@ export const CitySyncProvider: React.FC<{ children: ReactNode }> = ({ children }
       status: 'DISPATCHED',
     };
     setSosDispatches((prev) => [newDispatch, ...prev]);
+
+    // Asynchronous FastAPI backend persist attempt with graceful fallback
+    emergencyApiClient
+      .triggerSos({
+        citizen_name: citizenName,
+        location: location,
+        latitude: coordinates?.[0],
+        longitude: coordinates?.[1],
+      })
+      .then((res) => {
+        if (res && res.code) {
+          setSosDispatches((prev) =>
+            prev.map((d) => (d.id === newDispatch.id ? { ...d, code: res.code, status: res.status } : d))
+          );
+        }
+      })
+      .catch((err) => {
+        console.warn('FastAPI Emergency backend offline. Operating in DEMO_OFFLINE_FALLBACK mode.', err);
+      });
+
     return newDispatch;
   }, []);
+
 
   return (
     <CitySyncContext.Provider

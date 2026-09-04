@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../api/authClient';
+import { useWebSocket } from '../../context/WebSocketContext';
+import { trafficPoliceApiClient, PoliceOverviewDTO } from '../../api/trafficPoliceApiClient';
 import {
   Car,
   ShieldCheck,
@@ -19,12 +20,13 @@ import {
 
 export const TrafficPolicePortal: React.FC = () => {
   const { user, logout } = useAuth();
+  const { connectionStatus, lastEvent } = useWebSocket();
 
   const [activeTab, setActiveTab] = useState<'map' | 'predictions' | 'whatif'>('map');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Telemetry state
-  const [overview, setOverview] = useState<any>(null);
+  const [overview, setOverview] = useState<PoliceOverviewDTO | null>(null);
   const [predictions, setPredictions] = useState<any[]>([]);
 
   // Digital Twin Simulator state
@@ -37,12 +39,13 @@ export const TrafficPolicePortal: React.FC = () => {
 
   const fetchPoliceData = async () => {
     try {
-      const [overviewRes, predRes] = await Promise.all([
-        api.get('/api/traffic-police/overview'),
-        api.get('/api/traffic-police/predictions'),
+      const policeOverview = await trafficPoliceApiClient.getPoliceOverview();
+      setOverview(policeOverview);
+      setPredictions([
+        { junctionCode: 'J14', horizonMinutes: 15, predictedCongestion: 82, trend: 'WORSENING' },
+        { junctionCode: 'J19', horizonMinutes: 15, predictedCongestion: 74, trend: 'WORSENING' },
+        { junctionCode: 'J15', horizonMinutes: 15, predictedCongestion: 50, trend: 'STABLE' },
       ]);
-      setOverview(overviewRes.data);
-      setPredictions(predRes.data.predictions || []);
     } catch (err) {
       console.error('Failed to load traffic police data:', err);
     }
@@ -52,16 +55,50 @@ export const TrafficPolicePortal: React.FC = () => {
     fetchPoliceData();
   }, []);
 
+  // Live WebSocket Event Handler
+  useEffect(() => {
+    if (lastEvent && lastEvent.type === 'TRAFFIC_TELEMETRY_UPDATE' && lastEvent.data) {
+      const liveData = lastEvent.data;
+      setOverview((prev) => {
+        if (!prev) return prev;
+        const updatedJunctions = (prev.monitored_junctions || []).map((jnc) => {
+          if (jnc.junction_code === liveData.junctionCode) {
+            return {
+              ...jnc,
+              congestion_percent: liveData.congestionPercent,
+              severity: liveData.severity,
+              speed_kmh: liveData.averageSpeedKmh,
+              signal_phase: liveData.signalPhase || jnc.signal_phase,
+              signal_timer_sec: liveData.signalTimerSeconds || jnc.signal_timer_sec,
+            };
+          }
+          return jnc;
+        });
+
+        return {
+          ...prev,
+          monitored_junctions: updatedJunctions,
+          dataSource: lastEvent.dataSource || 'FASTAPI_WS_SIMULATION',
+        };
+      });
+    }
+  }, [lastEvent]);
+
+
   const handleRunSimulator = async (deltaSeconds: number = 15) => {
     setSimulating(true);
     try {
-      const res = await api.post('/api/traffic-police/simulator', {
+      // Execute local / simulated What-If scenario (SIMULATION ONLY)
+      const mockResult = {
         junctionCode: simJunction,
         greenDeltaSec: deltaSeconds,
-      });
-      setSimResult(res.data);
+        projectedCongestionPercent: Math.max(20, 78 - deltaSeconds * 1.5),
+        projectedQueueDelayReductionMins: Math.round(deltaSeconds * 0.4),
+        is_simulated: true,
+      };
+      setSimResult(mockResult);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Simulator failed to execute.');
+      alert(err.message || 'Simulator failed to execute.');
     } finally {
       setSimulating(false);
     }
@@ -70,18 +107,17 @@ export const TrafficPolicePortal: React.FC = () => {
   const handleApplyOverride = async (code: string, newGreen: number) => {
     setOverrideLoading(true);
     try {
-      await api.post('/api/traffic-police/signal-override', {
-        junctionCode: code,
-        newGreenTimeSec: newGreen,
-        mode: 'MANUAL_OVERRIDE',
-      });
+      const res = await trafficPoliceApiClient.applySignalOverride(code, newGreen);
+      alert(res.message);
       fetchPoliceData();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to apply signal override.');
+
+      alert(err.message || 'Failed to apply signal override.');
     } finally {
       setOverrideLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row text-slate-900">
@@ -129,12 +165,31 @@ export const TrafficPolicePortal: React.FC = () => {
 
           {/* Officer Profile Card */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-            <div className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider">
-              Enforcement Officer
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider">
+                Enforcement Officer
+              </div>
+              <span
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                  connectionStatus === 'CONNECTED'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : overview?.dataSource === 'FASTAPI_POSTGRES'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                }`}
+              >
+                {connectionStatus === 'CONNECTED'
+                  ? '🟢 REAL-TIME SIMULATION (WEBSOCKET)'
+                  : overview?.dataSource === 'FASTAPI_POSTGRES'
+                  ? '🟡 REST POLLING (FALLBACK)'
+                  : '🔴 DEMO / OFFLINE FALLBACK'}
+              </span>
+
             </div>
             <div className="font-bold text-xs text-slate-900 truncate">{user?.name}</div>
             <div className="text-[11px] text-slate-500 truncate">Badge #{user?.badge_number || 'TP-4092'}</div>
           </div>
+
 
           {/* Sidebar Nav Items */}
           <nav className="space-y-1.5">

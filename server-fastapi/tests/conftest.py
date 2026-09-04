@@ -27,10 +27,15 @@ def override_db_dependency():
     mock_jnc.latitude = 28.6139
     mock_jnc.longitude = 77.2090
     mock_jnc.status = "HEAVY"
+    mock_jnc.severity = "HEAVY"
+    mock_jnc.congestion_percent = 78
+    mock_jnc.average_speed_kmh = 18.0
     mock_jnc.current_green_time = 32
+    mock_jnc.signal_timer_seconds = 32
     mock_jnc.signal_phase = "NORTH_SOUTH"
     mock_jnc.sensor_health = "OPTIMAL"
     mock_jnc.active_advisory = "Lane 2 cleared"
+
 
     mock_tel = MagicMock()
     mock_tel.id = 1
@@ -114,6 +119,82 @@ def override_db_dependency():
     mock_cmp.remarks = None
     mock_cmp.created_at = MagicMock(strftime=lambda fmt: "2026-09-01 15:00")
 
+    mock_inc = MagicMock()
+    mock_inc.id = 1
+    mock_inc.code = "SOS-112-9182"
+    mock_inc.citizen_name = "Rahul S. (DEMO - Masked)"
+    mock_inc.citizen_id = 101
+    mock_inc.location = "Connaught Center Inner Circle, Gate 4"
+    mock_inc.latitude = 28.6139
+    mock_inc.longitude = 77.2090
+    mock_inc.priority = "CODE_RED_112"
+    mock_inc.assigned_unit = "EMS-ALPHA-07 (ALS Unit)"
+    mock_inc.destination_hospital = "City General Trauma Center (H01)"
+    mock_inc.eta_minutes = 3.8
+    mock_inc.status = "DISPATCHED"
+    mock_inc.is_simulated = True
+    mock_inc.created_at = MagicMock(isoformat=lambda: "2026-09-01T15:00:00.000Z")
+
+    mock_gc = MagicMock()
+    mock_gc.id = 1
+    mock_gc.name = "Trauma Priority Wave 01"
+    mock_gc.assigned_unit = "EMS Ambulance Alpha-108"
+    mock_gc.corridor_route = "Junction A -> JNC-103 -> City Trauma Hospital"
+    mock_gc.status = "ACTIVE"
+    mock_gc.eta_minutes = 6
+    mock_gc.signals_cleared = "4/5"
+    mock_gc.speed_kmh = 68
+    mock_gc.is_simulated = True
+    mock_gc.created_at = MagicMock(isoformat=lambda: "2026-09-01T15:00:00.000Z")
+
+    mock_prj = MagicMock()
+    mock_prj.id = 1
+    mock_prj.project_code = "PRJ-201"
+    mock_prj.title = "Sector 4 Flyover Expansion & Underpass Reinforcement"
+    mock_prj.department = "Bridges & Structural Engineering"
+    mock_prj.contractor = "L&T Infrastructure"
+    mock_prj.progress_percent = 72
+    mock_prj.budget_crores = 14.2
+    mock_prj.status = "IN_PROGRESS"
+    mock_prj.estimated_completion = "Nov 2026"
+    mock_prj.timeline = "Sep 2026 - Nov 2026"
+    mock_prj.traffic_diversion_active = True
+    mock_prj.is_simulated = True
+    mock_prj.created_at = MagicMock(isoformat=lambda: "2026-09-01T15:00:00.000Z")
+
+    mock_app = MagicMock()
+    mock_app.id = 1
+    mock_app.title = "Underground Cable Ducting Closure"
+    mock_app.proposed_by = "State Power Distribution Ltd"
+    mock_app.location = "Western Express Arterial"
+    mock_app.closure_duration = "3 Days (Weekend)"
+    mock_app.estimated_delay_mins = 14
+    mock_app.traffic_impact_level = "HIGH"
+    mock_app.status = "PENDING"
+    mock_app.comments = "Requires traffic diversion via Outer Ring Road"
+    mock_app.is_simulated = True
+    mock_app.created_at = MagicMock(isoformat=lambda: "2026-09-01T15:00:00.000Z")
+
+    mock_usr = MagicMock()
+    mock_usr.id = 101
+    mock_usr.email = "citizen@intelliflow.ai"
+    mock_usr.name = "Alex Rivera"
+    mock_usr.role = "CITIZEN"
+    mock_usr.is_active = True
+    mock_usr.created_at = MagicMock(isoformat=lambda: "2026-09-01T15:00:00.000Z")
+
+    mock_log = MagicMock()
+    mock_log.id = 1
+    mock_log.user_id = 101
+    mock_log.user = mock_usr
+    mock_log.user_name = "Alex Rivera"
+    mock_log.action = "LOGIN_SUCCESS"
+    mock_log.resource = "/api/v1/auth/login"
+    mock_log.details = "User logged in successfully"
+    from datetime import datetime, timezone
+    mock_log.timestamp = datetime.now(timezone.utc)
+
+
     async def mock_execute(stmt, *args, **kwargs):
         try:
             compiled_str = str(stmt.compile(compile_kwargs={"literal_binds": True}))
@@ -121,7 +202,37 @@ def override_db_dependency():
             compiled_str = str(stmt)
 
         mock_res = MagicMock()
-        if "parking_facilities" in compiled_str.lower() or "parking_slots" in compiled_str.lower():
+        if "users" in compiled_str.lower():
+            if "nonexistent" in compiled_str.lower() or "999" in compiled_str.lower():
+                mock_res.scalars.return_value.all.return_value = []
+                mock_res.scalar_one_or_none.return_value = None
+            else:
+                mock_res.scalars.return_value.all.return_value = [mock_usr]
+                mock_res.scalar_one_or_none.return_value = mock_usr
+        elif "system_audit_logs" in compiled_str.lower():
+            mock_res.scalars.return_value.all.return_value = [mock_log]
+            mock_res.scalar_one_or_none.return_value = mock_log
+        elif "emergency_incidents" in compiled_str.lower():
+            if "nonexistent" in compiled_str.lower() or "999" in compiled_str.lower():
+                mock_res.scalars.return_value.all.return_value = []
+                mock_res.scalar_one_or_none.return_value = None
+            else:
+                mock_res.scalars.return_value.all.return_value = [mock_inc]
+                mock_res.scalar_one_or_none.return_value = mock_inc
+        elif "green_corridors" in compiled_str.lower():
+            mock_res.scalars.return_value.all.return_value = [mock_gc]
+            mock_res.scalar_one_or_none.return_value = mock_gc
+        elif "infrastructure_projects" in compiled_str.lower():
+            mock_res.scalars.return_value.all.return_value = [mock_prj]
+            mock_res.scalar_one_or_none.return_value = mock_prj
+        elif "road_approvals" in compiled_str.lower():
+            if "nonexistent" in compiled_str.lower() or "999" in compiled_str.lower():
+                mock_res.scalars.return_value.all.return_value = []
+                mock_res.scalar_one_or_none.return_value = None
+            else:
+                mock_res.scalars.return_value.all.return_value = [mock_app]
+                mock_res.scalar_one_or_none.return_value = mock_app
+        elif "parking_facilities" in compiled_str.lower() or "parking_slots" in compiled_str.lower():
             if "nonexistent" in compiled_str.lower() or "999" in compiled_str.lower():
                 mock_res.scalars.return_value.all.return_value = []
                 mock_res.scalar_one_or_none.return_value = None
@@ -159,6 +270,7 @@ def override_db_dependency():
             mock_res.scalar.return_value = 1
             mock_res.first.return_value = (None, None)
         return mock_res
+
 
     mock_session.execute.side_effect = mock_execute
 
@@ -210,6 +322,18 @@ def municipal_jwt_token() -> str:
         "name": "Eng. Sunita Rao",
         "email": "municipal@intelliflow.ai",
         "role": "CITY_OPERATIONS",
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+@pytest.fixture
+def admin_jwt_token() -> str:
+    """Generates a valid JWT token for Admin user."""
+    payload = {
+        "id": 100,
+        "name": "Super Admin",
+        "email": "admin@intelliflow.ai",
+        "role": "ADMIN",
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 

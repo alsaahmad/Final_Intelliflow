@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
-import api from '../../api/authClient';
-import { User, UserRole } from '../../types/auth';
+import { adminApiClient, AdminUserDTO, AdminAuditLogDTO } from '../../api/adminApiClient';
+import { UserRole } from '../../types/auth';
 import {
   Users,
   History,
@@ -9,20 +9,22 @@ import {
 } from 'lucide-react';
 
 export const AdminPortal: React.FC = () => {
-  const [usersList, setUsersList] = useState<User[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [usersList, setUsersList] = useState<AdminUserDTO[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLogDTO[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dataSource, setDataSource] = useState<string>('FASTAPI_POSTGRES');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const [usersRes, logsRes] = await Promise.all([
-        api.get('/api/admin/users'),
-        api.get('/api/admin/audit-logs'),
+      const [usersData, logsData] = await Promise.all([
+        adminApiClient.getUsers(),
+        adminApiClient.getAuditLogs(),
       ]);
-      setUsersList(usersRes.data.users || []);
-      setAuditLogs(logsRes.data.logs || []);
+      setUsersList(usersData.users || []);
+      setAuditLogs(logsData.logs || []);
+      setDataSource(usersData.dataSource || 'FASTAPI_POSTGRES');
     } catch (err: any) {
       console.error('Failed to load admin data:', err);
     } finally {
@@ -36,23 +38,24 @@ export const AdminPortal: React.FC = () => {
 
   const handleRoleUpdate = async (userId: string | number, newRole: UserRole) => {
     try {
-      await api.patch(`/api/admin/users/${String(userId)}/role`, { role: newRole });
+      await adminApiClient.updateUserRole(userId, newRole);
       setActionMessage(`Updated user role to ${newRole}`);
       loadAdminData();
     } catch (err: any) {
-      setActionMessage(`Failed: ${err.response?.data?.message || err.message}`);
+      setActionMessage(`Failed: ${err.message || 'Error updating role'}`);
     }
   };
 
   const handleStatusToggle = async (userId: string | number, currentStatus?: boolean) => {
     try {
-      await api.patch(`/api/admin/users/${String(userId)}/status`, { isActive: !currentStatus });
+      await adminApiClient.toggleUserStatus(userId, !!currentStatus);
       setActionMessage(`Updated user status`);
       loadAdminData();
     } catch (err: any) {
-      setActionMessage(`Failed: ${err.response?.data?.message || err.message}`);
+      setActionMessage(`Failed: ${err.message || 'Error toggling status'}`);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col text-slate-900">
@@ -61,9 +64,15 @@ export const AdminPortal: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold border border-purple-200">
-              <span>ADMINISTRATIVE GOVERNANCE</span>
+            <div className="flex items-center space-x-2">
+              <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold border border-purple-200">
+                <span>ADMINISTRATIVE GOVERNANCE</span>
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${dataSource === 'FASTAPI_POSTGRES' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                {dataSource === 'FASTAPI_POSTGRES' ? 'FASTAPI / POSTGRES LIVE' : 'DEMO / OFFLINE FALLBACK'}
+              </span>
             </div>
+
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
               System Administration
             </h1>
@@ -186,8 +195,9 @@ export const AdminPortal: React.FC = () => {
                   <tr key={log.id} className="hover:bg-slate-50 font-mono">
                     <td className="py-2.5 text-slate-400">#{log.id}</td>
                     <td className="py-2.5 text-slate-500 font-sans text-[11px]">
-                      {new Date(log.created_at || Date.now()).toLocaleTimeString()}
+                      {new Date(log.timestamp || Date.now()).toLocaleTimeString()}
                     </td>
+
                     <td className="py-2.5 font-bold text-slate-900 font-sans">{log.action}</td>
                     <td className="py-2.5 text-slate-600 font-sans truncate max-w-sm">{log.details}</td>
                     <td className="py-2.5 text-slate-500 font-sans text-[11px]">{log.user_name || 'System'}</td>

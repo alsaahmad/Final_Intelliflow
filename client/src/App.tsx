@@ -130,22 +130,25 @@ export const AppRoutes: React.FC = () => {
 
 import { CitySyncProvider } from './context/CitySyncContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { WebSocketProvider } from './context/WebSocketContext';
 import { GigwAccessibilityBar } from './components/compliance/GigwAccessibilityBar';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AccessibilityProvider>
-          <CitySyncProvider>
-            <div className="flex flex-col min-h-screen">
-              <GigwAccessibilityBar />
-              <div className="flex-1">
-                <AppRoutes />
+        <WebSocketProvider>
+          <AccessibilityProvider>
+            <CitySyncProvider>
+              <div className="flex flex-col min-h-screen">
+                <GigwAccessibilityBar />
+                <div className="flex-1">
+                  <AppRoutes />
+                </div>
               </div>
-            </div>
-          </CitySyncProvider>
-        </AccessibilityProvider>
+            </CitySyncProvider>
+          </AccessibilityProvider>
+        </WebSocketProvider>
       </AuthProvider>
     </BrowserRouter>
   );

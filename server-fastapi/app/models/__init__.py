@@ -5,6 +5,8 @@ from app.models.alert import TrafficAlertModel
 from app.models.audit import SystemAuditLog
 from app.models.parking import ParkingFacilityModel, ParkingSlotModel
 from app.models.complaint import CitizenComplaintModel
+from app.models.emergency import EmergencyIncidentModel, GreenCorridorModel
+from app.models.infrastructure import InfrastructureProjectModel, RoadApprovalModel
 
 __all__ = [
     "Base",
@@ -18,5 +20,8 @@ __all__ = [
     "ParkingFacilityModel",
     "ParkingSlotModel",
     "CitizenComplaintModel",
+    "EmergencyIncidentModel",
+    "GreenCorridorModel",
+    "InfrastructureProjectModel",
+    "RoadApprovalModel",
 ]
-

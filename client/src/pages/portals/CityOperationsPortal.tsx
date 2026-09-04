@@ -3,6 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCitySync } from '../../context/CitySyncContext';
 import api from '../../api/authClient';
+import { infrastructureApiClient } from '../../api/infrastructureApiClient';
+import { emergencyApiClient } from '../../api/emergencyApiClient';
+
 import { DualMapView, MapMarker } from '../../components/map/DualMapView';
 import {
   Activity,
@@ -184,11 +187,13 @@ export const CityOperationsPortal: React.FC = () => {
   // Fetch initial telemetry data
   const fetchData = async () => {
     try {
-      const [overRes, emergRes, logsRes, munRes] = await Promise.allSettled([
+      const [overRes, emergRes, logsRes, munRes, fastInfraRes, fastEmergRes] = await Promise.allSettled([
         api.get('/api/command/overview'),
         api.get('/api/command/emergency-monitoring'),
         api.get('/api/command/logs'),
         api.get('/api/municipal/overview'),
+        infrastructureApiClient.getOverview(),
+        emergencyApiClient.getMonitoring(),
       ]);
 
       if (overRes.status === 'fulfilled') setOverview(overRes.value.data);
@@ -198,6 +203,16 @@ export const CityOperationsPortal: React.FC = () => {
         setMunicipalStats(munRes.value.data.stats || null);
         if (munRes.value.data.projects?.length) setProjects(munRes.value.data.projects);
         if (munRes.value.data.approvals?.length) setApprovals(munRes.value.data.approvals);
+      }
+
+      // FastAPI Phase 3D Infrastructure & Emergency updates (override if available)
+      if (fastInfraRes.status === 'fulfilled' && fastInfraRes.value?.success) {
+        if (fastInfraRes.value.stats) setMunicipalStats(fastInfraRes.value.stats);
+        if (fastInfraRes.value.projects?.length) setProjects(fastInfraRes.value.projects);
+        if (fastInfraRes.value.approvals?.length) setApprovals(fastInfraRes.value.approvals);
+      }
+      if (fastEmergRes.status === 'fulfilled' && fastEmergRes.value?.success) {
+        setEmergencyData(fastEmergRes.value);
       }
     } catch (err) {
       console.error('Failed to load City Operations data:', err);
@@ -220,54 +235,74 @@ export const CityOperationsPortal: React.FC = () => {
     setTimeout(() => setStatusFeedback(null), 4000);
   };
 
-  // Run road closure simulation
+  // Run road closure simulation via infrastructureApiClient
   const handleRunClosureSim = async () => {
     setSimulating(true);
     try {
-      const res = await api.post('/api/municipal/closure-simulation', {
-        roadSegment: selectedRoad,
-        closureType: closureType === 'PARTIAL_CLOSURE' ? 'SINGLE_LANE' : 'FULL_CLOSURE',
-        durationDays: 3,
+      const data = await infrastructureApiClient.runClosureSimulation({
+        road_segment: selectedRoad,
+        closure_type: closureType === 'PARTIAL_CLOSURE' ? 'SINGLE_LANE' : 'FULL_CLOSURE',
+        duration_days: 3,
       });
-      if (res.data?.simulation) {
+      if (data?.simulation) {
         setSimResult({
-          impactedThroughput: `-${res.data.simulation.divertedVehiclesPerHour} veh/hr`,
-          queueSpilloverMeters: `+${res.data.simulation.estimatedAverageDelayMins * 45}m delay`,
-          suggestedDetour: res.data.simulation.suggestedDetours?.[0]?.routeName || 'Divert via Outer Sector Link R106',
-          riskLevel: res.data.simulation.impactScore === 'CRITICAL' ? 'HIGH_CONGESTION' : 'MODERATE_MITIGATED',
-          mitigationPlan: res.data.simulation.mitigationPlan || [],
+          impactedThroughput: `-${data.simulation.diverted_vehicles_per_hour || data.simulation.divertedVehiclesPerHour} veh/hr`,
+          queueSpilloverMeters: `+${(data.simulation.estimated_average_delay_mins || data.simulation.estimatedAverageDelayMins) * 45}m delay`,
+          suggestedDetour: (data.simulation.suggested_detours || data.simulation.suggestedDetours)?.[0]?.route_name || (data.simulation.suggested_detours || data.simulation.suggestedDetours)?.[0]?.routeName || 'Divert via Outer Sector Link R106',
+          riskLevel: (data.simulation.impact_score || data.simulation.impactScore) === 'CRITICAL' ? 'HIGH_CONGESTION' : 'MODERATE_MITIGATED',
+          mitigationPlan: data.simulation.mitigation_plan || data.simulation.mitigationPlan || [],
         });
       }
     } catch {
-      // Fallback local simulation result
-      setTimeout(() => {
-        setSimResult({
-          impactedThroughput: '-320 veh/hr',
-          queueSpilloverMeters: '+420m on Ring Road',
-          suggestedDetour: 'Divert heavy traffic via Outer Sector Link R106',
-          riskLevel: 'MODERATE_MITIGATED',
-          mitigationPlan: [
-            'Adjust traffic signals on Detour Alpha +15s green wave during peak hours',
-            'Deploy 4 traffic wardens at Sector 8 merge junction',
-            'Broadcast public detour advisory on Citizen Portal & GPS feeds 48h prior',
-          ],
+      // Fallback via legacy Express or local simulation
+      try {
+        const res = await api.post('/api/municipal/closure-simulation', {
+          roadSegment: selectedRoad,
+          closureType: closureType === 'PARTIAL_CLOSURE' ? 'SINGLE_LANE' : 'FULL_CLOSURE',
+          durationDays: 3,
         });
-      }, 500);
+        if (res.data?.simulation) {
+          setSimResult({
+            impactedThroughput: `-${res.data.simulation.divertedVehiclesPerHour} veh/hr`,
+            queueSpilloverMeters: `+${res.data.simulation.estimatedAverageDelayMins * 45}m delay`,
+            suggestedDetour: res.data.simulation.suggestedDetours?.[0]?.routeName || 'Divert via Outer Sector Link R106',
+            riskLevel: res.data.simulation.impactScore === 'CRITICAL' ? 'HIGH_CONGESTION' : 'MODERATE_MITIGATED',
+            mitigationPlan: res.data.simulation.mitigationPlan || [],
+          });
+        }
+      } catch {
+        setTimeout(() => {
+          setSimResult({
+            impactedThroughput: '-320 veh/hr',
+            queueSpilloverMeters: '+420m on Ring Road',
+            suggestedDetour: 'Divert heavy traffic via Outer Sector Link R106',
+            riskLevel: 'MODERATE_MITIGATED',
+            mitigationPlan: [
+              'Adjust traffic signals on Detour Alpha +15s green wave during peak hours',
+              'Deploy 4 traffic wardens at Sector 8 merge junction',
+              'Broadcast public detour advisory on Citizen Portal & GPS feeds 48h prior',
+            ],
+          });
+        }, 500);
+      }
     } finally {
       setSimulating(false);
     }
   };
 
-  // Road Plan Approval Decision
+  // Road Plan Approval Decision via infrastructureApiClient
   const handleApprovalDecision = async (id: number, decision: 'APPROVED' | 'REJECTED') => {
     try {
-      await api.post(`/api/municipal/approvals/${id}/decision`, { decision });
+      await infrastructureApiClient.submitApprovalDecision(id, decision);
       setApprovals((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: decision } : a))
       );
-      setStatusFeedback(`Road Plan #${id} has been ${decision.toLowerCase()}.`);
+      setStatusFeedback(`Road Plan #${id} has been ${decision.toLowerCase()} (FastAPI Synced).`);
       setTimeout(() => setStatusFeedback(null), 3000);
     } catch {
+      try {
+        await api.post(`/api/municipal/approvals/${id}/decision`, { decision });
+      } catch {}
       setApprovals((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: decision } : a))
       );
@@ -276,27 +311,37 @@ export const CityOperationsPortal: React.FC = () => {
     }
   };
 
-  // Create Green Corridor (Demo Mode)
+  // Create Green Corridor via emergencyApiClient
   const handleCreateGreenCorridor = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/command/green-corridor', {
+      await emergencyApiClient.createGreenCorridor({
         name: corridorName,
-        assignedUnit,
-        corridorRoute,
-        etaMinutes: 6,
-        speedKmh: 68,
+        assigned_unit: assignedUnit,
+        corridor_route: corridorRoute,
+        eta_minutes: 6,
+        speed_kmh: 68,
       });
-      setDispatchSuccess(`[Simulation] Priority Green Corridor "${corridorName}" activated across signals.`);
+      setDispatchSuccess(`[Simulated Wave] Priority Green Corridor "${corridorName}" registered via FastAPI.`);
       setCorridorModalOpen(false);
       setCorridorName('');
       fetchData();
     } catch {
-      setDispatchSuccess(`[Simulation] Priority Green Corridor "${corridorName}" registered.`);
+      try {
+        await api.post('/api/command/green-corridor', {
+          name: corridorName,
+          assignedUnit,
+          corridorRoute,
+          etaMinutes: 6,
+          speedKmh: 68,
+        });
+      } catch {}
+      setDispatchSuccess(`[Simulated Wave] Priority Green Corridor "${corridorName}" registered.`);
       setCorridorModalOpen(false);
       setCorridorName('');
     }
   };
+
 
   // Map Markers for Live Map View
   const rawMarkers: MapMarker[] = [

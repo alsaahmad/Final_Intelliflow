@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCitySync } from '../../context/CitySyncContext';
+import { useWebSocket } from '../../context/WebSocketContext';
 import { DualMapView, MapMarker, MapPolyline } from '../../components/map/DualMapView';
 import { citizenService } from '../../services/citizenService';
 import {
@@ -41,6 +42,7 @@ import {
 
 export const CitizenPortal: React.FC = () => {
   const { user } = useAuth();
+  const { connectionStatus, lastEvent } = useWebSocket();
   const {
     complaints,
     addComplaint,
@@ -54,6 +56,7 @@ export const CitizenPortal: React.FC = () => {
 
   // Service Layer State
   const [alerts, setAlerts] = useState<TrafficAlert[]>([]);
+
   const [junctions, setJunctions] = useState<CitizenJunctionSummary[]>([]);
   const [notifications, setNotifications] = useState<CitizenNotification[]>([]);
   const [mobilityStatus, setMobilityStatus] = useState<CityMobilityStatus>({
@@ -233,15 +236,29 @@ export const CitizenPortal: React.FC = () => {
     },
   }));
 
+  // Live WebSocket Event Handler for Traffic Alerts (Strict Domain Separation)
+  useEffect(() => {
+    if (lastEvent && lastEvent.type === 'TRAFFIC_ALERT_PUBLISHED' && lastEvent.data) {
+      const liveAlert = lastEvent.data;
+      setAlerts((prev) => {
+        const exists = prev.some((a) => a.id === liveAlert.id || a.code === liveAlert.code);
+        if (exists) return prev;
+        return [liveAlert, ...prev];
+      });
+    }
+  }, [lastEvent]);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900 pb-16 md:pb-6">
       {/* 1. Modern Header with Notifications, DPDP Vault, Profile */}
       <CitizenHeader
         notifications={notifications}
+        connectionStatus={connectionStatus}
         onOpenPrivacyVault={() => setPrivacyVaultOpen(true)}
         onTriggerSos={handleTriggerSos}
         onSelectNotificationAction={(tab) => setActiveTab(tab)}
       />
+
 
       {/* 2. Top Navigation Breadcrumb / Tabs Bar */}
       <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-2 shadow-xs">

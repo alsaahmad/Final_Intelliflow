@@ -17,6 +17,7 @@ import {
 
 interface CitizenHeaderProps {
   notifications: CitizenNotification[];
+  connectionStatus?: string;
   onOpenPrivacyVault: () => void;
   onTriggerSos: () => void;
   onSelectNotificationAction?: (tab: 'NAVIGATION' | 'PARKING' | 'REPORT' | 'SOS' | 'DASHBOARD') => void;
@@ -24,6 +25,7 @@ interface CitizenHeaderProps {
 
 export const CitizenHeader: React.FC<CitizenHeaderProps> = ({
   notifications,
+  connectionStatus,
   onOpenPrivacyVault,
   onTriggerSos,
   onSelectNotificationAction,
@@ -83,7 +85,19 @@ export const CitizenHeader: React.FC<CitizenHeaderProps> = ({
               <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-extrabold border border-blue-200 tracking-wide">
                 CITIZEN
               </span>
+              <span
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                  connectionStatus === 'CONNECTED'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}
+              >
+                {connectionStatus === 'CONNECTED'
+                  ? '🟢 REAL-TIME SIMULATION (WEBSOCKET)'
+                  : '🟡 REST POLLING (FALLBACK)'}
+              </span>
             </div>
+
             <span className="text-[10px] text-slate-500 font-medium hidden sm:block">
               Civic Mobility & Traffic Decision Platform
             </span>

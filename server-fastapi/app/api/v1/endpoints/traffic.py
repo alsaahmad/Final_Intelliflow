@@ -242,7 +242,34 @@ async def ingest_telemetry(
     await db.commit()
     await db.refresh(telemetry_record)
 
+    # Publish real-time event to Redis Pub/Sub channel
+    import uuid
+    from app.services.redis_service import redis_service
+    await redis_service.publish(
+        "intelliflow:channels:traffic",
+        {
+            "eventId": f"evt_{uuid.uuid4()}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": "TRAFFIC_TELEMETRY_UPDATE",
+            "channel": "traffic",
+            "is_simulated": False,
+            "dataSource": "FASTAPI_POSTGRES",
+            "data": {
+                "junctionCode": jnc.code,
+                "junctionName": jnc.name,
+                "congestionPercent": payload.congestion_percent,
+                "severity": compute_severity(payload.congestion_percent),
+                "averageSpeedKmh": payload.average_speed_kmh,
+                "queueLengthMeters": payload.queue_length_meters,
+                "vehicleCount": payload.vehicle_count,
+                "signalPhase": jnc.signal_phase,
+                "signalTimerSeconds": jnc.current_green_time,
+            },
+        },
+    )
+
     return TelemetryResponseSchema.model_validate(telemetry_record)
+
 
 
 @router.get(
@@ -349,6 +376,7 @@ async def create_alert(
 
     db.add(alert_record)
     await db.commit()
+
     await db.refresh(alert_record)
 
     lat = alert_record.latitude if alert_record.latitude is not None else 28.6139
@@ -356,7 +384,7 @@ async def create_alert(
     now_iso = datetime.now(timezone.utc).isoformat()
     ts = alert_record.created_at.isoformat() if alert_record.created_at else now_iso
 
-    return TrafficAlertSchema(
+    response_schema = TrafficAlertSchema(
         id=f"alt-{alert_record.id}",
         code=alert_record.code,
         incidentId=f"inc-{alert_record.incident_id}" if alert_record.incident_id else None,
@@ -374,6 +402,25 @@ async def create_alert(
         affectedLanes=alert_record.affected_lanes,
         dataSource="FASTAPI_DEMO_POSTGRESQL",
     )
+
+    # Publish real-time event to Redis Pub/Sub channel
+    import uuid
+    from app.services.redis_service import redis_service
+    await redis_service.publish(
+        "intelliflow:channels:alerts",
+        {
+            "eventId": f"evt_{uuid.uuid4()}",
+            "timestamp": now_iso,
+            "type": "TRAFFIC_ALERT_PUBLISHED",
+            "channel": "alerts",
+            "is_simulated": False,
+            "dataSource": "FASTAPI_POSTGRES",
+            "data": response_schema.model_dump(),
+        },
+    )
+
+    return response_schema
+
 
 
 @router.get(

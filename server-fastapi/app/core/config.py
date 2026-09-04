@@ -16,9 +16,17 @@ class Settings(BaseSettings):
     # PostgreSQL Database Connection (SQLAlchemy 2.x asyncpg)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/intelliflow_db"
 
+    # Redis Connection URL (Phase 3F Real-Time Broker)
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # Real-Time Telemetry Simulator
+    ENABLE_SIMULATOR: bool = True
+    SIMULATOR_INTERVAL_SECONDS: float = 6.0
+
     # JWT Security Configuration (Shared with Express backend on port 5000)
     JWT_SECRET: str = "intelliflow_ai_jwt_secret_key_2026_smart_city_platform"
     JWT_ALGORITHM: str = "HS256"
+
 
     # CORS Allowed Client Origins
     CORS_ORIGINS: List[str] = [

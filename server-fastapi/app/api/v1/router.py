@@ -1,7 +1,19 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, traffic, parking, complaints
+from app.api.v1.endpoints import (
+    health,
+    traffic,
+    parking,
+    complaints,
+    emergency,
+    infrastructure,
+    admin,
+    police,
+    websocket,
+)
 
 api_v1_router = APIRouter()
+
+
 
 # Include health check endpoints
 api_v1_router.include_router(health.router, tags=["Health Checks"])
@@ -15,3 +27,17 @@ api_v1_router.include_router(parking.router, prefix="/parking", tags=["Smart Par
 # Include citizen complaints domain endpoints
 api_v1_router.include_router(complaints.router, prefix="/complaints", tags=["Citizen Complaints Domain"])
 
+# Include emergency domain endpoints
+api_v1_router.include_router(emergency.router, prefix="/emergency", tags=["Emergency Domain"])
+
+# Include municipal infrastructure domain endpoints
+api_v1_router.include_router(infrastructure.router, prefix="/infrastructure", tags=["Infrastructure Domain"])
+
+# Include admin domain endpoints
+api_v1_router.include_router(admin.router, prefix="/admin", tags=["Admin Domain"])
+
+# Include traffic police domain endpoints
+api_v1_router.include_router(police.router, prefix="/traffic-police", tags=["Traffic Police Domain"])
+
+# Include real-time WebSocket endpoints
+api_v1_router.include_router(websocket.router, tags=["Real-Time WebSockets"])
