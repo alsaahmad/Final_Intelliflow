@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const FASTAPI_INFRASTRUCTURE_URL = 'http://localhost:8000/api/v1/infrastructure';
+const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000/api/v1';
+const FASTAPI_INFRASTRUCTURE_URL = `${FASTAPI_BASE_URL}/infrastructure`;
 
 const infrastructureApi = axios.create({
   baseURL: FASTAPI_INFRASTRUCTURE_URL,

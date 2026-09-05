@@ -64,7 +64,9 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     setConnectionStatus(reconnectAttemptRef.current > 0 ? 'RECONNECTING' : 'CONNECTING');
 
-    const wsUrl = `ws://localhost:8000/api/v1/ws/live?token=${encodeURIComponent(token)}`;
+    const fastapiBaseUrl = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000/api/v1';
+    const wsBaseUrl = fastapiBaseUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+    const wsUrl = `${wsBaseUrl}/ws/live?token=${encodeURIComponent(token)}`;
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 

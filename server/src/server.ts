@@ -24,9 +24,16 @@ export function createServer() {
   );
 
   // CORS configuration
+  const defaultOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'];
+  const envOrigins = (process.env.CLIENT_URL || process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0 && o !== '*');
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+
   app.use(
     cors({
-      origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'],
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

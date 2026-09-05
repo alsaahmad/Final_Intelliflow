@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { CitizenComplaint } from '../context/CitySyncContext';
 
-const FASTAPI_COMPLAINTS_URL = 'http://localhost:8000/api/v1/complaints';
+const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000/api/v1';
+const FASTAPI_COMPLAINTS_URL = `${FASTAPI_BASE_URL}/complaints`;
 
 const complaintsApi = axios.create({
   baseURL: FASTAPI_COMPLAINTS_URL,

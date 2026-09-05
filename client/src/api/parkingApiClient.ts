@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { ParkingFacility, ParkingSlot } from '../types/citizen';
 
-const FASTAPI_PARKING_URL = 'http://localhost:8000/api/v1/parking';
+const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000/api/v1';
+const FASTAPI_PARKING_URL = `${FASTAPI_BASE_URL}/parking`;
 
 const parkingApi = axios.create({
   baseURL: FASTAPI_PARKING_URL,

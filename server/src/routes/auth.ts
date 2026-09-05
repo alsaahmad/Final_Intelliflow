@@ -53,11 +53,11 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       role = 'MUNICIPAL_CORP';
     }
 
-    if (!VALID_ROLES.includes(role as UserRole)) {
-      return res.status(400).json({
+    if (role !== 'CITIZEN') {
+      return res.status(403).json({
         success: false,
-        error: 'INVALID_ROLE',
-        message: `Role must be one of: ${VALID_ROLES.join(', ')}`,
+        error: 'REGISTRATION_RESTRICTED',
+        message: 'Public registration is restricted to Citizen accounts.',
       });
     }
 

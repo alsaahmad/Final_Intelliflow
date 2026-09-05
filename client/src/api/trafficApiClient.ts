@@ -5,10 +5,11 @@ import {
   CityMobilityStatus,
 } from '../types/citizen';
 
-const FASTAPI_BASE_URL = 'http://localhost:8000/api/v1/traffic';
+const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000/api/v1';
+const FASTAPI_TRAFFIC_URL = `${FASTAPI_BASE_URL}/traffic`;
 
 const trafficApi = axios.create({
-  baseURL: FASTAPI_BASE_URL,
+  baseURL: FASTAPI_TRAFFIC_URL,
   timeout: 3000, // 3s timeout for fast fallback if server is offline
   headers: {
     'Content-Type': 'application/json',

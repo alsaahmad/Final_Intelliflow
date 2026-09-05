@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const FASTAPI_EMERGENCY_URL = 'http://localhost:8000/api/v1/emergency';
+const FASTAPI_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000/api/v1';
+const FASTAPI_EMERGENCY_URL = `${FASTAPI_BASE_URL}/emergency`;
 
 const emergencyApi = axios.create({
   baseURL: FASTAPI_EMERGENCY_URL,

@@ -42,11 +42,37 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        defaults = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://localhost:5000",
+        ]
+        parsed: List[str] = []
         if isinstance(v, str):
             try:
-                return json.loads(v)
+                res = json.loads(v)
+                if isinstance(res, list):
+                    parsed = [str(i).strip() for i in res if str(i).strip()]
+                elif isinstance(res, str):
+                    parsed = [i.strip() for i in res.split(",") if i.strip()]
             except Exception:
-                return [i.strip() for i in v.split(",") if i.strip()]
+                parsed = [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            parsed = [str(i).strip() for i in v if str(i).strip()]
+
+        filtered = [i for i in parsed if i != "*"]
+        combined = list(dict.fromkeys(defaults + filtered))
+        return combined if combined else defaults
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
 
     model_config = SettingsConfigDict(
