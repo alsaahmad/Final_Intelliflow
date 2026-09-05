@@ -2,7 +2,7 @@ import axios from 'axios';
 import { User, UserRole, AuthResponse } from '../types/auth';
 
 const api = axios.create({
-  baseURL: '', // Handled by Vite proxy (/api and /auth)
+  baseURL: import.meta.env.VITE_EXPRESS_BASE_URL || '', // Handled by VITE_EXPRESS_BASE_URL in prod or Vite proxy (/api and /auth) in dev
   headers: {
     'Content-Type': 'application/json',
   },
